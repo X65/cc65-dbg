@@ -328,7 +328,7 @@ export class MockDebugSession extends LoggingDebugSession {
 			// A missing 'showUser' should result in a modal dialog.
 			this.sendErrorResponse(response, {
 				id: 1001,
-				format: `compile error: some fake error.`,
+				format: "compile error: some fake error.",
 				showUser:
 					args.compileError === "show"
 						? true
@@ -601,8 +601,7 @@ export class MockDebugSession extends LoggingDebugSession {
 		const rv =
 			container === "locals"
 				? this._runtime.getLocalVariable(args.name)
-				: container instanceof RuntimeVariable &&
-						container.value instanceof Array
+				: container instanceof RuntimeVariable && Array.isArray(container.value)
 					? container.value.find((v) => v.name === args.name)
 					: undefined;
 
@@ -706,7 +705,7 @@ export class MockDebugSession extends LoggingDebugSession {
 					) as DebugProtocol.Breakpoint;
 					bp.id = mbp.id;
 					this.sendEvent(new BreakpointEvent("new", bp));
-					reply = `breakpoint created`;
+					reply = "breakpoint created";
 				} else {
 					const matches = /del +([0-9]+)/.exec(args.expression);
 					if (matches && matches.length === 2) {
@@ -718,13 +717,13 @@ export class MockDebugSession extends LoggingDebugSession {
 							const bp = new Breakpoint(false) as DebugProtocol.Breakpoint;
 							bp.id = mbp.id;
 							this.sendEvent(new BreakpointEvent("removed", bp));
-							reply = `breakpoint deleted`;
+							reply = "breakpoint deleted";
 						}
 					} else {
 						const matches = /progress/.exec(args.expression);
 						if (matches && matches.length === 1) {
 							if (this._reportProgress) {
-								reply = `progress started`;
+								reply = "progress started";
 								this.progressSequence();
 							} else {
 								reply = `frontend doesn't support progress (capability 'supportsProgressReporting' not set)`;
@@ -795,7 +794,7 @@ export class MockDebugSession extends LoggingDebugSession {
 	}
 
 	private async progressSequence() {
-		const ID = "" + this._progressId++;
+		const ID = `${this._progressId++}`;
 
 		await timeout(100);
 
@@ -1025,7 +1024,7 @@ export class MockDebugSession extends LoggingDebugSession {
 			return value.substr(1, value.length - 2);
 		}
 		const n = Number.parseFloat(value);
-		if (!isNaN(n)) {
+		if (!Number.isNaN(n)) {
 			return n;
 		}
 		return value;
@@ -1037,7 +1036,7 @@ export class MockDebugSession extends LoggingDebugSession {
 			value: "???",
 			type: typeof v.value,
 			variablesReference: 0,
-			evaluateName: "$" + v.name,
+			evaluateName: `$${v.name}`,
 		};
 
 		if (v.name.indexOf("lazy") >= 0) {
@@ -1088,16 +1087,15 @@ export class MockDebugSession extends LoggingDebugSession {
 	}
 
 	private formatAddress(x: number, pad = 8) {
-		return (
-			"mem" +
-			(this._addressesInHex
-				? "0x" + x.toString(16).padStart(8, "0")
-				: x.toString(10))
-		);
+		return `mem${
+			this._addressesInHex
+				? `0x${x.toString(16).padStart(8, "0")}`
+				: x.toString(10)
+		}`;
 	}
 
 	private formatNumber(x: number) {
-		return this._valuesInHex ? "0x" + x.toString(16) : x.toString(10);
+		return this._valuesInHex ? `0x${x.toString(16)}` : x.toString(10);
 	}
 
 	private createSource(filePath: string): Source {

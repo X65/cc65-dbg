@@ -432,7 +432,7 @@ export class MockRuntime extends EventEmitter {
 
 		for (let i = 0; i < 10; i++) {
 			a.push(new RuntimeVariable(`global_${i}`, i));
-			if (cancellationToken && cancellationToken()) {
+			if (cancellationToken?.()) {
 				break;
 			}
 			await timeout(1000);
@@ -657,11 +657,10 @@ export class MockRuntime extends EventEmitter {
 			if (this.namedException === exception) {
 				this.sendEvent("stopOnException", exception);
 				return true;
-			} else {
-				if (this.otherExceptions) {
-					this.sendEvent("stopOnException", undefined);
-					return true;
-				}
+			}
+			if (this.otherExceptions) {
+				this.sendEvent("stopOnException", undefined);
+				return true;
 			}
 		} else {
 			// if word 'exception' found in source -> throw exception
@@ -713,8 +712,7 @@ export class MockRuntime extends EventEmitter {
 	private normalizePathAndCasing(path: string) {
 		if (this.fileAccessor.isWindows) {
 			return path.replace(/\//g, "\\").toLowerCase();
-		} else {
-			return path.replace(/\\/g, "/");
 		}
+		return path.replace(/\\/g, "/");
 	}
 }

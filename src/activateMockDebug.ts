@@ -178,7 +178,7 @@ export function activateMockDebug(
 					l++
 				) {
 					const line = document.lineAt(l);
-					var regExp = /\$([a-z][a-z0-9]*)/gi; // variables are words starting with '$'
+					const regExp = /\$([a-z][a-z0-9]*)/gi; // variables are words starting with '$'
 					do {
 						var m = regExp.exec(line.text);
 						if (m) {
