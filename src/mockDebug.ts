@@ -688,7 +688,8 @@ export class MockDebugSession extends LoggingDebugSession {
 		let rv: RuntimeVariable | undefined;
 
 		switch (args.context) {
-			case "repl":
+			// biome-ignore lint/suspicious/noFallthroughSwitchClause: falls through
+			case "repl": {
 				// handle some REPL commands:
 				// 'evaluate' supports to create and delete breakpoints from the 'repl':
 				const matches = /new +([0-9]+)/.exec(args.expression);
@@ -731,7 +732,8 @@ export class MockDebugSession extends LoggingDebugSession {
 						}
 					}
 				}
-			// fall through
+			}
+			// falls through
 
 			default:
 				if (args.expression.startsWith("$")) {
@@ -996,7 +998,7 @@ export class MockDebugSession extends LoggingDebugSession {
 	protected customRequest(
 		command: string,
 		response: DebugProtocol.Response,
-		args: any,
+		args: unknown,
 	) {
 		if (command === "toggleFormatting") {
 			this._valuesInHex = !this._valuesInHex;
@@ -1058,6 +1060,7 @@ export class MockDebugSession extends LoggingDebugSession {
 					case "number":
 						if (Math.round(v.value) === v.value) {
 							dapVariable.value = this.formatNumber(v.value);
+							// biome-ignore lint/suspicious/noExplicitAny: temporary workaround
 							(<any>dapVariable).__vscodeVariableMenuContext = "simple"; // enable context menu contribution
 							dapVariable.type = "integer";
 						} else {
