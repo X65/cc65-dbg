@@ -680,7 +680,7 @@ export class MockRuntime extends EventEmitter {
 		const bps = this.breakPoints.get(path);
 		if (bps) {
 			await this.loadSource(path);
-			bps.forEach((bp) => {
+			for (const bp of bps) {
 				if (!bp.verified && bp.line < this.sourceLines.length) {
 					const srcLine = this.getLine(bp.line);
 
@@ -699,11 +699,11 @@ export class MockRuntime extends EventEmitter {
 						this.sendEvent("breakpointValidated", bp);
 					}
 				}
-			});
+			}
 		}
 	}
 
-	private sendEvent(event: string, ...args: any[]): void {
+	private sendEvent(event: string, ...args: unknown[]): void {
 		setTimeout(() => {
 			this.emit(event, ...args);
 		}, 0);

@@ -129,8 +129,8 @@ export function activateMockDebug(
 	context.subscriptions.push(
 		vscode.debug.registerDebugAdapterDescriptorFactory("mock", factory),
 	);
-	if ("dispose" in factory) {
-		context.subscriptions.push(factory);
+	if ("dispose" in factory && typeof factory.dispose === "function") {
+		context.subscriptions.push(factory as vscode.Disposable);
 	}
 
 	// override VS Code's default implementation of the debug hover
@@ -179,8 +179,9 @@ export function activateMockDebug(
 				) {
 					const line = document.lineAt(l);
 					const regExp = /\$([a-z][a-z0-9]*)/gi; // variables are words starting with '$'
+					let m: RegExpExecArray | null;
 					do {
-						var m = regExp.exec(line.text);
+						m = regExp.exec(line.text);
 						if (m) {
 							const varName = m[1];
 							const varRange = new vscode.Range(
