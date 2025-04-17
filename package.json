@@ -71,7 +71,7 @@
 	"browser": "./dist/web-extension.js",
 	"activationEvents": [
 		"onDebugResolve:cc65-dbg",
-		"onDebugDynamicConfigurations:mock",
+		"onDebugDynamicConfigurations:cc65-dbg",
 		"onCommand:extension.cc65-dbg.getProgramName"
 	],
 	"workspaceTrust": {

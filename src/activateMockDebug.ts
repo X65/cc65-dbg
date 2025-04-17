@@ -21,7 +21,7 @@ export function activateMockDebug(
 ) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
-			"extension.mock-debug.runEditorContents",
+			"extension.cc65-dbg.runEditorContents",
 			(resource: vscode.Uri) => {
 				let targetResource = resource;
 				if (!targetResource && vscode.window.activeTextEditor) {
@@ -31,7 +31,7 @@ export function activateMockDebug(
 					vscode.debug.startDebugging(
 						undefined,
 						{
-							type: "mock",
+							type: "cc65-dbg",
 							name: "Run File",
 							request: "launch",
 							program: targetResource.fsPath,
@@ -42,7 +42,7 @@ export function activateMockDebug(
 			},
 		),
 		vscode.commands.registerCommand(
-			"extension.mock-debug.debugEditorContents",
+			"extension.cc65-dbg.debugEditorContents",
 			(resource: vscode.Uri) => {
 				let targetResource = resource;
 				if (!targetResource && vscode.window.activeTextEditor) {
@@ -50,7 +50,7 @@ export function activateMockDebug(
 				}
 				if (targetResource) {
 					vscode.debug.startDebugging(undefined, {
-						type: "mock",
+						type: "cc65-dbg",
 						name: "Debug File",
 						request: "launch",
 						program: targetResource.fsPath,
@@ -60,7 +60,7 @@ export function activateMockDebug(
 			},
 		),
 		vscode.commands.registerCommand(
-			"extension.mock-debug.toggleFormatting",
+			"extension.cc65-dbg.toggleFormatting",
 			(variable) => {
 				const ds = vscode.debug.activeDebugSession;
 				if (ds) {
@@ -72,7 +72,7 @@ export function activateMockDebug(
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
-			"extension.mock-debug.getProgramName",
+			"extension.cc65-dbg.getProgramName",
 			(config) => {
 				return vscode.window.showInputBox({
 					placeHolder:
@@ -83,16 +83,16 @@ export function activateMockDebug(
 		),
 	);
 
-	// register a configuration provider for 'mock' debug type
+	// register a configuration provider for 'cc65-dbg' debug type
 	const provider = new MockConfigurationProvider();
 	context.subscriptions.push(
-		vscode.debug.registerDebugConfigurationProvider("mock", provider),
+		vscode.debug.registerDebugConfigurationProvider("cc65-dbg", provider),
 	);
 
-	// register a dynamic configuration provider for 'mock' debug type
+	// register a dynamic configuration provider for 'cc65-dbg' debug type
 	context.subscriptions.push(
 		vscode.debug.registerDebugConfigurationProvider(
-			"mock",
+			"cc65-dbg",
 			{
 				provideDebugConfigurations(
 					folder: WorkspaceFolder | undefined,
@@ -101,19 +101,19 @@ export function activateMockDebug(
 						{
 							name: "Dynamic Launch",
 							request: "launch",
-							type: "mock",
+							type: "cc65-dbg",
 							program: "${file}",
 						},
 						{
 							name: "Another Dynamic Launch",
 							request: "launch",
-							type: "mock",
+							type: "cc65-dbg",
 							program: "${file}",
 						},
 						{
 							name: "Mock Launch",
 							request: "launch",
-							type: "mock",
+							type: "cc65-dbg",
 							program: "${file}",
 						},
 					];
@@ -127,7 +127,7 @@ export function activateMockDebug(
 		factory = new InlineDebugAdapterFactory();
 	}
 	context.subscriptions.push(
-		vscode.debug.registerDebugAdapterDescriptorFactory("mock", factory),
+		vscode.debug.registerDebugAdapterDescriptorFactory("cc65-dbg", factory),
 	);
 	if ("dispose" in factory && typeof factory.dispose === "function") {
 		context.subscriptions.push(factory as vscode.Disposable);
@@ -225,7 +225,7 @@ class MockConfigurationProvider implements vscode.DebugConfigurationProvider {
 		if (!config.type && !config.request && !config.name) {
 			const editor = vscode.window.activeTextEditor;
 			if (editor && editor.document.languageId === "markdown") {
-				config.type = "mock";
+				config.type = "cc65-dbg";
 				config.name = "Launch";
 				config.request = "launch";
 				config.program = "${file}";

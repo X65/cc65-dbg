@@ -9,9 +9,7 @@
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}/sampleWorkspace"
 			],
-			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
-			],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "npm: watch"
 		},
 		{
@@ -24,9 +22,7 @@
 				"--extensionDevelopmentKind=web",
 				"${workspaceFolder}/sampleWorkspace"
 			],
-			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
-			],
+			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "npm: watch web"
 		},
 		{
@@ -35,12 +31,8 @@
 			"request": "launch",
 			"cwd": "${workspaceFolder}",
 			"program": "${workspaceFolder}/src/debugAdapter.ts",
-			"args": [
-				"--server=4711"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
+			"args": ["--server=4711"],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
 			"preLaunchTask": "npm: compile"
 		},
 		{
@@ -49,15 +41,8 @@
 			"request": "launch",
 			"cwd": "${workspaceFolder}",
 			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-			"args": [
-				"-u", "tdd",
-				"--timeout", "999999",
-				"--colors",
-				"./out/tests/"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
+			"args": ["-u", "tdd", "--timeout", "999999", "--colors", "./out/tests/"],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
 			"internalConsoleOptions": "openOnSessionStart",
 			"preLaunchTask": "npm: compile"
 		}
@@ -65,7 +50,7 @@
 	"compounds": [
 		{
 			"name": "Extension + Server",
-			"configurations": [ "Extension", "Server" ]
+			"configurations": ["Extension", "Server"]
 		}
 	]
 }
