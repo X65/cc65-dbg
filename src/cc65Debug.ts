@@ -59,13 +59,15 @@ interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	trace?: boolean;
 	/** run without debugging */
 	noDebug?: boolean;
-	/** if specified, results in a simulated compile error in launch. */
-	compileError?: "default" | "show" | "hide";
+	/** An absolute path to the working directory. */
+	cwd?: string;
+	/** Debugee arguments. */
+	args?: string[];
 }
 
 interface IAttachRequestArguments extends ILaunchRequestArguments {}
 
-export class MockDebugSession extends LoggingDebugSession {
+export class Cc65DebugSession extends LoggingDebugSession {
 	// we don't support multiple threads, so we can use a hardcoded ID for the default thread
 	private static threadID = 1;
 
@@ -95,32 +97,32 @@ export class MockDebugSession extends LoggingDebugSession {
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor(fileAccessor: FileAccessor) {
-		super("cc65-dbg-debug.txt");
+		super("cc65-dbg.log");
 
-		// this debugger uses zero-based lines and columns
-		this.setDebuggerLinesStartAt1(false);
-		this.setDebuggerColumnsStartAt1(false);
+		// this debugger uses one-based lines and columns
+		this.setDebuggerLinesStartAt1(true);
+		this.setDebuggerColumnsStartAt1(true);
 
 		this._runtime = new MockRuntime(fileAccessor);
 
 		// setup event handlers
 		this._runtime.on("stopOnEntry", () => {
-			this.sendEvent(new StoppedEvent("entry", MockDebugSession.threadID));
+			this.sendEvent(new StoppedEvent("entry", Cc65DebugSession.threadID));
 		});
 		this._runtime.on("stopOnStep", () => {
-			this.sendEvent(new StoppedEvent("step", MockDebugSession.threadID));
+			this.sendEvent(new StoppedEvent("step", Cc65DebugSession.threadID));
 		});
 		this._runtime.on("stopOnBreakpoint", () => {
-			this.sendEvent(new StoppedEvent("breakpoint", MockDebugSession.threadID));
+			this.sendEvent(new StoppedEvent("breakpoint", Cc65DebugSession.threadID));
 		});
 		this._runtime.on("stopOnDataBreakpoint", () => {
 			this.sendEvent(
-				new StoppedEvent("data breakpoint", MockDebugSession.threadID),
+				new StoppedEvent("data breakpoint", Cc65DebugSession.threadID),
 			);
 		});
 		this._runtime.on("stopOnInstructionBreakpoint", () => {
 			this.sendEvent(
-				new StoppedEvent("instruction breakpoint", MockDebugSession.threadID),
+				new StoppedEvent("instruction breakpoint", Cc65DebugSession.threadID),
 			);
 		});
 		this._runtime.on("stopOnException", (exception) => {
@@ -128,12 +130,12 @@ export class MockDebugSession extends LoggingDebugSession {
 				this.sendEvent(
 					new StoppedEvent(
 						`exception(${exception})`,
-						MockDebugSession.threadID,
+						Cc65DebugSession.threadID,
 					),
 				);
 			} else {
 				this.sendEvent(
-					new StoppedEvent("exception", MockDebugSession.threadID),
+					new StoppedEvent("exception", Cc65DebugSession.threadID),
 				);
 			}
 		});
@@ -322,23 +324,7 @@ export class MockDebugSession extends LoggingDebugSession {
 		// start the program in the runtime
 		await this._runtime.start(args.program, !!args.stopOnEntry, !args.noDebug);
 
-		if (args.compileError) {
-			// simulate a compile/build error in "launch" request:
-			// the error should not result in a modal dialog since 'showUser' is set to false.
-			// A missing 'showUser' should result in a modal dialog.
-			this.sendErrorResponse(response, {
-				id: 1001,
-				format: "compile error: some fake error.",
-				showUser:
-					args.compileError === "show"
-						? true
-						: args.compileError === "hide"
-							? false
-							: undefined,
-			});
-		} else {
-			this.sendResponse(response);
-		}
+		this.sendResponse(response);
 	}
 
 	protected setFunctionBreakPointsRequest(
@@ -460,8 +446,8 @@ export class MockDebugSession extends LoggingDebugSession {
 		// runtime supports no threads so just return a default thread.
 		response.body = {
 			threads: [
-				new Thread(MockDebugSession.threadID, "thread 1"),
-				new Thread(MockDebugSession.threadID + 1, "thread 2"),
+				new Thread(Cc65DebugSession.threadID, "thread 1"),
+				new Thread(Cc65DebugSession.threadID + 1, "thread 2"),
 			],
 		};
 		this.sendResponse(response);

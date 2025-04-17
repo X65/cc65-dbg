@@ -3,5 +3,5 @@ dist
 node_modules
 .vscode-test/
 npm-debug.log
-cc65-dbg-debug.txt
+cc65-dbg.log
 .DS_Store

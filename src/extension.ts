@@ -17,7 +17,7 @@ import * as Net from "net";
 import * as vscode from "vscode";
 import type { ProviderResult } from "vscode";
 import { activateDebug, workspaceFileAccessor } from "./activateDebug";
-import { MockDebugSession } from "./mockDebug";
+import { Cc65DebugSession } from "./cc65Debug";
 
 /*
  * The compile time flag 'runMode' controls how the debug adapter is run.
@@ -89,7 +89,7 @@ class DebugAdapterServerDescriptorFactory
 		if (!this.server) {
 			// start listening on a random port
 			this.server = Net.createServer((socket) => {
-				const session = new MockDebugSession(workspaceFileAccessor);
+				const session = new Cc65DebugSession(workspaceFileAccessor);
 				session.setRunAsServer(true);
 				session.start(socket as NodeJS.ReadableStream, socket);
 			}).listen(0);
