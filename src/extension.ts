@@ -2,7 +2,7 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 /*
- * extension.ts (and activateMockDebug.ts) forms the "plugin" that plugs into VS Code and contains the code that
+ * extension.ts (and activateDebug.ts) forms the "plugin" that plugs into VS Code and contains the code that
  * connects VS Code with the debug adapter.
  *
  * extension.ts contains code for launching the debug adapter in three different ways:
@@ -20,7 +20,7 @@ import { join } from "path";
 import { platform } from "process";
 import * as vscode from "vscode";
 import type { ProviderResult } from "vscode";
-import { activateMockDebug, workspaceFileAccessor } from "./activateMockDebug";
+import { activateDebug, workspaceFileAccessor } from "./activateDebug";
 import { MockDebugSession } from "./mockDebug";
 
 /*
@@ -34,12 +34,12 @@ export function activate(context: vscode.ExtensionContext) {
 	switch (runMode) {
 		case "server":
 			// run the debug adapter as a server inside the extension and communicate via a socket
-			activateMockDebug(context, new MockDebugAdapterServerDescriptorFactory());
+			activateDebug(context, new MockDebugAdapterServerDescriptorFactory());
 			break;
 
 		case "namedPipeServer":
 			// run the debug adapter as a server inside the extension and communicate via a named pipe (Windows) or UNIX domain socket (non-Windows)
-			activateMockDebug(
+			activateDebug(
 				context,
 				new MockDebugAdapterNamedPipeServerDescriptorFactory(),
 			);
@@ -47,12 +47,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 		case "external":
 			// run the debug adapter as a separate process
-			activateMockDebug(context, new DebugAdapterExecutableFactory());
+			activateDebug(context, new DebugAdapterExecutableFactory());
 			break;
 
 		case "inline":
 			// run the debug adapter inside the extension and directly talk to it
-			activateMockDebug(context);
+			activateDebug(context);
 			break;
 	}
 }
