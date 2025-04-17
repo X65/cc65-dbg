@@ -5,20 +5,47 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"type": "mock",
+			"type": "cc65-dbg",
 			"request": "launch",
-			"name": "Debug readme.md",
-			"program": "${workspaceFolder}/readme.md",
+			"name": "Debug file",
+			"program": "${file}",
 			"stopOnEntry": true,
-			"trace": false
+			"cwd": "${cwd}"
 		},
 		{
-			"type": "mock",
-			"request": "attach",
-			"name": "Attach readme.md",
-			"program": "${workspaceFolder}/readme.md",
+			"type": "cc65-dbg",
+			"request": "launch",
+			"name": "Launch with args",
+			"program": "${cwd}",
+			"args": [
+				{
+					"sbin": "${cwd}\\hello_world.bin",
+					"src": "${cwd}",
+					"list": "${cwd}",
+					"input": "0xf004",
+					"output": "0xf001"
+				}
+			],
 			"stopOnEntry": true,
-			"trace": false
+			"cwd": "${cwd}"
+		},
+		{
+			"type": "cc65-dbg",
+			"request": "launch",
+			"name": "Launch with 65C02",
+			"program": "${cwd}",
+			"args": [
+				{
+					"cpu": "65C02",
+					"sbin": "${cwd}\\hello_world.bin",
+					"src": "${cwd}",
+					"list": "${cwd}",
+					"input": "0xf004",
+					"output": "0xf001"
+				}
+			],
+			"stopOnEntry": true,
+			"cwd": "${cwd}"
 		}
 	]
 }

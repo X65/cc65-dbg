@@ -1,7 +1,7 @@
 {
 	"name": "cc65-dbg",
 	"displayName": "cc65 Debugger",
-	"version": "0.52.0",
+	"version": "0.0.1",
 	"publisher": "X65 Project",
 	"description": "cc65 assembly language debugger for VS Code.",
 	"author": {
@@ -14,6 +14,7 @@
 	"icon": "images/cc65-dbg-icon.png",
 	"categories": ["Debuggers"],
 	"keywords": [
+		"debugger",
 		"cc65",
 		"ca65",
 		"6502",
@@ -137,28 +138,21 @@
 			},
 			{
 				"language": "cc65"
+			},
+			{
+				"language": "rpw65"
 			}
 		],
 		"debuggers": [
 			{
 				"type": "cc65-dbg",
-				"languages": ["ca65", "cc65"],
+				"languages": ["ca65", "cc65", "rpw65"],
 				"label": "cc65-dbg Debug",
 				"program": "./out/debugAdapter.js",
 				"runtime": "node",
 				"configurationAttributes": {
 					"launch": {
 						"required": ["program"],
-						"romPath": {
-							"type": "string",
-							"description": "Path to rom file.",
-							"default": "${workspaceFolder}/${command:AskForRomPath}"
-						},
-						"dbgPath": {
-							"type": "string",
-							"description": "Path to dbg file.",
-							"default": "${workspaceFolder}/${command:AskForDbgPath}"
-						},
 						"properties": {
 							"program": {
 								"type": "string",
@@ -184,65 +178,47 @@
 									"show fake compile error to user",
 									"do not show fake compile error to user"
 								]
-							}
-						}
-					},
-					"attach": {
-						"required": ["program"],
-						"properties": {
-							"program": {
+							},
+							"cwd": {
 								"type": "string",
-								"description": "Absolute path to a text file.",
-								"default": "${workspaceFolder}/${command:AskForProgramName}"
+								"description": "Absolute path to the working directory.",
+								"default": "${cwd}"
 							},
-							"stopOnEntry": {
-								"type": "boolean",
-								"description": "Automatically stop after attach.",
-								"default": true
-							},
-							"trace": {
-								"type": "boolean",
-								"description": "Enable logging of the Debug Adapter Protocol.",
-								"default": true
-							},
-							"compileError": {
+							"args": {
 								"type": "string",
-								"description": "Simulates a compile error in 'attach' request.",
-								"enum": ["default", "show", "hide"],
-								"enumDescriptions": [
-									"default: show fake compile error to user",
-									"show fake compile error to user",
-									"do not show fake compile error to user"
-								]
+								"description": "Debugee arguments."
 							}
 						}
 					}
 				},
 				"initialConfigurations": [
 					{
-						"type": "mock",
+						"type": "cc65-dbg",
 						"request": "launch",
-						"name": "Ask for file name",
-						"program": "${workspaceFolder}/${command:AskForProgramName}",
-						"stopOnEntry": true
-					}
-				],
-				"configurationSnippets": [
+						"name": "Debug file",
+						"program": "${file}",
+						"stopOnEntry": true,
+						"cwd": "${cwd}"
+					},
 					{
-						"label": "Mock Debug: Launch",
-						"description": "A new configuration for 'debugging' a user selected markdown file.",
-						"body": {
-							"type": "mock",
-							"request": "launch",
-							"name": "Ask for file name",
-							"program": "^\"\\${workspaceFolder}/\\${command:AskForProgramName}\"",
-							"stopOnEntry": true
-						}
+						"type": "cc65-dbg",
+						"request": "launch",
+						"name": "Launch with args",
+						"program": "${cwd}",
+						"args": [
+							{
+								"cpu": "65816",
+								"sbin": "${cwd}\\hello_world.bin",
+								"src": "${cwd}",
+								"list": "${cwd}",
+								"input": "0xf004",
+								"output": "0xf001"
+							}
+						],
+						"stopOnEntry": true,
+						"cwd": "${cwd}"
 					}
-				],
-				"variables": {
-					"AskForProgramName": "extension.cc65-dbg.getProgramName"
-				}
+				]
 			}
 		]
 	}
