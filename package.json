@@ -1,9 +1,9 @@
 {
 	"name": "cc65-dbg",
-	"displayName": "cc65 Debugger",
+	"displayName": "cc65/ca65 Debugger",
 	"version": "0.0.1",
 	"publisher": "X65 Project",
-	"description": "cc65 assembly language debugger for VS Code.",
+	"description": "cc65/ca65 assembly language debugger for VS Code.",
 	"author": {
 		"name": "Tomasz Sterna"
 	},
@@ -169,15 +169,10 @@
 								"description": "Enable logging of the Debug Adapter Protocol.",
 								"default": true
 							},
-							"compileError": {
-								"type": "string",
-								"description": "Simulates a compile error in 'launch' request.",
-								"enum": ["default", "show", "hide"],
-								"enumDescriptions": [
-									"default: show fake compile error to user",
-									"show fake compile error to user",
-									"do not show fake compile error to user"
-								]
+							"noDebug": {
+								"type": "boolean",
+								"description": "Run without debugging.",
+								"default": false
 							},
 							"cwd": {
 								"type": "string",

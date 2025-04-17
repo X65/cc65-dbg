@@ -12,7 +12,7 @@ import type {
 	ProviderResult,
 	WorkspaceFolder,
 } from "vscode";
-import { MockDebugSession } from "./mockDebug";
+import { Cc65DebugSession } from "./cc65Debug";
 import type { FileAccessor } from "./mockRuntime";
 
 export function activateDebug(
@@ -277,7 +277,7 @@ class InlineDebugAdapterFactory
 		_session: vscode.DebugSession,
 	): ProviderResult<vscode.DebugAdapterDescriptor> {
 		return new vscode.DebugAdapterInlineImplementation(
-			new MockDebugSession(workspaceFileAccessor),
+			new Cc65DebugSession(workspaceFileAccessor),
 		);
 	}
 }
