@@ -1,0 +1,9 @@
+{
+  "files.associations": {
+    "*.c": "cc65",
+    "*.h": "cc65",
+    "*.asm": "ca65",
+    "*.s": "ca65",
+    "*.inc": "ca65"
+  }
+}

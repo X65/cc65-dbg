@@ -2,7 +2,7 @@
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 /*
- * activateMockDebug.ts containes the shared extension code that can be executed both in node.js and the browser.
+ * activateDebug.ts containes the shared extension code that can be executed both in node.js and the browser.
  */
 
 import * as vscode from "vscode";
@@ -15,7 +15,7 @@ import type {
 import { MockDebugSession } from "./mockDebug";
 import type { FileAccessor } from "./mockRuntime";
 
-export function activateMockDebug(
+export function activateDebug(
 	context: vscode.ExtensionContext,
 	factory?: vscode.DebugAdapterDescriptorFactory,
 ) {
