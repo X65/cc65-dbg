@@ -13,11 +13,7 @@
  * Since the code in extension.ts uses node.js APIs it cannot run in the browser.
  */
 
-import { randomBytes } from "crypto";
 import * as Net from "net";
-import { tmpdir } from "os";
-import { join } from "path";
-import { platform } from "process";
 import * as vscode from "vscode";
 import type { ProviderResult } from "vscode";
 import { activateDebug, workspaceFileAccessor } from "./activateDebug";
@@ -27,22 +23,14 @@ import { MockDebugSession } from "./mockDebug";
  * The compile time flag 'runMode' controls how the debug adapter is run.
  * Please note: the test suite only supports 'external' mode.
  */
-const runMode: "external" | "server" | "namedPipeServer" | "inline" = "inline";
+const runMode: "external" | "server" | "inline" = "inline";
 
 export function activate(context: vscode.ExtensionContext) {
 	// debug adapters can be run in different ways by using a vscode.DebugAdapterDescriptorFactory:
 	switch (runMode) {
 		case "server":
 			// run the debug adapter as a server inside the extension and communicate via a socket
-			activateDebug(context, new MockDebugAdapterServerDescriptorFactory());
-			break;
-
-		case "namedPipeServer":
-			// run the debug adapter as a server inside the extension and communicate via a named pipe (Windows) or UNIX domain socket (non-Windows)
-			activateDebug(
-				context,
-				new MockDebugAdapterNamedPipeServerDescriptorFactory(),
-			);
+			activateDebug(context, new DebugAdapterServerDescriptorFactory());
 			break;
 
 		case "external":
@@ -89,7 +77,7 @@ class DebugAdapterExecutableFactory
 	}
 }
 
-class MockDebugAdapterServerDescriptorFactory
+class DebugAdapterServerDescriptorFactory
 	implements vscode.DebugAdapterDescriptorFactory
 {
 	private server?: Net.Server;
@@ -110,43 +98,6 @@ class MockDebugAdapterServerDescriptorFactory
 		// make VS Code connect to debug server
 		return new vscode.DebugAdapterServer(
 			(this.server.address() as Net.AddressInfo).port,
-		);
-	}
-
-	dispose() {
-		if (this.server) {
-			this.server.close();
-		}
-	}
-}
-
-class MockDebugAdapterNamedPipeServerDescriptorFactory
-	implements vscode.DebugAdapterDescriptorFactory
-{
-	private server?: Net.Server;
-
-	createDebugAdapterDescriptor(
-		session: vscode.DebugSession,
-		executable: vscode.DebugAdapterExecutable | undefined,
-	): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-		if (!this.server) {
-			// start listening on a random named pipe path
-			const pipeName = randomBytes(10).toString("utf8");
-			const pipePath =
-				platform === "win32"
-					? join("\\\\.\\pipe\\", pipeName)
-					: join(tmpdir(), pipeName);
-
-			this.server = Net.createServer((socket) => {
-				const session = new MockDebugSession(workspaceFileAccessor);
-				session.setRunAsServer(true);
-				session.start(<NodeJS.ReadableStream>socket, socket);
-			}).listen(pipePath);
-		}
-
-		// make VS Code connect to debug server
-		return new vscode.DebugAdapterNamedPipeServer(
-			this.server.address() as string,
 		);
 	}
 
