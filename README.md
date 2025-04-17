@@ -11,5 +11,6 @@ Works with any adapter/emulator supporting Debug Adapter Protocol (DAP).
 This extension uses code from:
 
 - [Alchemy65](https://github.com/AlchemicRaker/alchemy65)
+- [db65xx](https://github.com/tmr4/db65xx)
 
 Kudos to its authors!
