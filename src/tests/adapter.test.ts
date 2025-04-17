@@ -17,7 +17,7 @@ suite("Node Debug Adapter", () => {
 	let dc: DebugClient;
 
 	setup(() => {
-		dc = new DebugClient("node", DEBUG_ADAPTER, "mock");
+		dc = new DebugClient("node", DEBUG_ADAPTER, "cc65-dbg");
 		return dc.start();
 	});
 
@@ -45,7 +45,7 @@ suite("Node Debug Adapter", () => {
 
 		test("should produce error for invalid 'pathFormat'", (done) => {
 			dc.initializeRequest({
-				adapterID: "mock",
+				adapterID: "cc65-dbg",
 				linesStartAt1: true,
 				columnsStartAt1: true,
 				pathFormat: "url",

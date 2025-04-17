@@ -3,6 +3,5 @@ dist
 node_modules
 .vscode-test/
 npm-debug.log
-mock-debug.txt
-*.vsix
+cc65-dbg-debug.txt
 .DS_Store

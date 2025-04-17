@@ -45,9 +45,9 @@ import {
 } from "./mockRuntime";
 
 /**
- * This interface describes the mock-debug specific launch attributes
+ * This interface describes the cc65-dbg specific launch attributes
  * (which are not part of the Debug Adapter Protocol).
- * The schema for these attributes lives in the package.json of the mock-debug extension.
+ * The schema for these attributes lives in the package.json of the cc65-dbg extension.
  * The interface should always match this schema.
  */
 interface ILaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
@@ -95,7 +95,7 @@ export class MockDebugSession extends LoggingDebugSession {
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor(fileAccessor: FileAccessor) {
-		super("mock-debug.txt");
+		super("cc65-dbg-debug.txt");
 
 		// this debugger uses zero-based lines and columns
 		this.setDebuggerLinesStartAt1(false);
@@ -1107,7 +1107,7 @@ export class MockDebugSession extends LoggingDebugSession {
 			this.convertDebuggerPathToClient(filePath),
 			undefined,
 			undefined,
-			"mock-adapter-data",
+			"cc65-dbg-adapter-data",
 		);
 	}
 }
