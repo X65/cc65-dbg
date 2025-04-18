@@ -8,46 +8,20 @@
       "type": "cc65-dbg",
       "request": "launch",
       "name": "Debug file",
-      "program": "../../emu/build/emu",
-      "args": ["--dap", "${file}"],
+      "program": "hello_world.bin",
+      "command": "../../emu/build/emu",
+      "args": ["--dap", "${program}"],
       "stopOnEntry": true,
-      "cwd": "${workspaceFolder}/sampleWorkspace",
+      "cwd": "${workspaceFolder}",
       "trace": true
     },
     {
       "type": "cc65-dbg",
-      "request": "launch",
-      "name": "Launch with args",
-      "program": "${cwd}",
-      "args": [
-        {
-          "sbin": "${cwd}\\hello_world.bin",
-          "src": "${cwd}",
-          "list": "${cwd}",
-          "input": "0xf004",
-          "output": "0xf001"
-        }
-      ],
-      "stopOnEntry": true,
-      "cwd": "${cwd}"
-    },
-    {
-      "type": "cc65-dbg",
-      "request": "launch",
-      "name": "Launch with 65C02",
-      "program": "${cwd}",
-      "args": [
-        {
-          "cpu": "65C02",
-          "sbin": "${cwd}\\hello_world.bin",
-          "src": "${cwd}",
-          "list": "${cwd}",
-          "input": "0xf004",
-          "output": "0xf001"
-        }
-      ],
-      "stopOnEntry": true,
-      "cwd": "${cwd}"
+      "request": "attach",
+      "name": "Attach running",
+      "program": "hello_world.bin",
+      "port": 4567,
+      "trace": true
     }
   ]
 }

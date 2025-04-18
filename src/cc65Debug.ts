@@ -33,11 +33,12 @@ import {
 	logger,
 } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
+import type * as vscode from "vscode";
 import { Subject } from "await-notify";
 import * as base64 from "base64-js";
+import * as path from "path";
 import { basename } from "path-browserify";
 import { ChildProcess, type ChildProcessWithoutNullStreams, spawn } from "child_process";
-import path = require("path");
 
 export function timeout(time: number) {
 	return new Promise((resolve) => setTimeout(resolve, time));
@@ -99,11 +100,17 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 * We configure the default implementation of a debug adapter here.
 	 */
 	public constructor() {
+		console.log("constructor");
 		super("cc65-dbg.log");
 
 		// this debugger uses one-based lines and columns
 		this.setDebuggerLinesStartAt1(true);
 		this.setDebuggerColumnsStartAt1(true);
+	}
+
+	public handleMessage(message: DebugProtocol.ProtocolMessage) {
+		console.log("message", message);
+		return super.handleMessage(message);
 	}
 
 	/**
@@ -114,6 +121,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.InitializeResponse,
 		args: DebugProtocol.InitializeRequestArguments,
 	): void {
+		console.log("initializeRequest", response, args);
 		if (args.supportsProgressReporting) {
 			this._reportProgress = true;
 		}
@@ -208,6 +216,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.ConfigurationDoneResponse,
 		args: DebugProtocol.ConfigurationDoneArguments,
 	): void {
+		console.log("configurationDoneRequest");
 		super.configurationDoneRequest(response, args);
 
 		// notify the launchRequest that configuration has finished
@@ -219,9 +228,23 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		args: DebugProtocol.DisconnectArguments,
 		request?: DebugProtocol.Request,
 	): void {
+		console.log("disconnectRequest");
+		this.terminateRequest(response, args, request);
+	}
+
+	protected terminateRequest(
+		response: DebugProtocol.DisconnectResponse,
+		args: DebugProtocol.DisconnectArguments,
+		request?: DebugProtocol.Request,
+	): void {
+		console.log("terminateRequest");
 		console.log(
-			`disconnectRequest suspend: ${args.suspendDebuggee}, terminate: ${args.terminateDebuggee}`,
+			`terminateRequest suspend: ${args.suspendDebuggee}, terminate: ${args.terminateDebuggee}`,
+			request,
+			response,
 		);
+
+		this.sendResponse(response);
 
 		if (args.terminateDebuggee) {
 			this._program?.stdin.destroy();
@@ -235,6 +258,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.AttachResponse,
 		args: IAttachRequestArguments,
 	) {
+		console.log("attachRequest");
 		return this.launchRequest(response, args);
 	}
 
@@ -242,62 +266,63 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.LaunchResponse,
 		args: ILaunchRequestArguments,
 	) {
+		console.log("launchRequest");
 		// make sure to 'Stop' the buffered logging if 'trace' is not set
 		logger.setup(args.trace ? Logger.LogLevel.Verbose : Logger.LogLevel.Stop, false);
 
 		// wait 1 second until configuration has finished (and configurationDoneRequest has been called)
 		await this._configurationDone.wait(1000);
 
-		// start the program
-		this._launchedSuccessfully = false;
-		this._program = spawn(args.program, args.args, {
-			cwd: path.parse(args.cwd || ".").dir,
-		});
+		// // start the program
+		// this._launchedSuccessfully = false;
+		// this._program = spawn(args.program, args.args, {
+		// 	cwd: path.parse(args.cwd || ".").dir,
+		// });
 
-		let failMessage = "";
-		this._program.on("error", (err) => {
-			// failed to spawn, exit early
-			failMessage = err.message;
-			console.log(`launch error: ${err.message}`);
-		});
+		// let failMessage = "";
+		// this._program.on("error", (err) => {
+		// 	// failed to spawn, exit early
+		// 	failMessage = err.message;
+		// 	console.log(`launch error: ${err.message}`);
+		// });
 
-		this._program.stdout.on("data", (data) => {
-			console.log(`stdout: ${data}`);
-		});
+		// this._program.stdout.on("data", (data) => {
+		// 	console.log(`stdout: ${data}`);
+		// });
 
-		this._program.stderr.on("data", (data) => {
-			console.error(`stderr: ${data}`);
-		});
+		// this._program.stderr.on("data", (data) => {
+		// 	console.error(`stderr: ${data}`);
+		// });
 
-		this._program.on("close", (_code) => {
-			// stdio streams closed
-			if (this._launchedSuccessfully) {
-				this.sendEvent(new TerminatedEvent());
-			}
-		});
+		// this._program.on("close", (_code) => {
+		// 	// stdio streams closed
+		// 	if (this._launchedSuccessfully) {
+		// 		this.sendEvent(new TerminatedEvent());
+		// 	}
+		// });
 
-		this._program.on("exit", (code) => {
-			// process terminated
-			if (this._launchedSuccessfully) {
-				this.sendEvent(new ExitedEvent(code || 0));
-			}
-		});
+		// this._program.on("exit", (code) => {
+		// 	// process terminated
+		// 	if (this._launchedSuccessfully) {
+		// 		this.sendEvent(new ExitedEvent(code || 0));
+		// 	}
+		// });
 
-		while (!this._program.pid == null && this._program.exitCode == null) {
-			await timeout(500);
-		}
+		// while (!this._program.pid == null && this._program.exitCode == null) {
+		// 	await timeout(500);
+		// }
 
-		if (this._program.pid) {
-			this._launchedSuccessfully = true;
-			this.sendResponse(response);
-		} else {
-			this.sendErrorResponse(response, {
-				id: ErrorCodes.DAP_SPAWN_ERROR,
-				format: "Failed to launch DAP adapter/debugger: {failMessage}",
-				variables: { failMessage },
-				showUser: true,
-			});
-		}
+		// if (this._program.pid) {
+		// 	this._launchedSuccessfully = true;
+		// 	this.sendResponse(response);
+		// } else {
+		// 	this.sendErrorResponse(response, {
+		// 		id: ErrorCodes.DAP_SPAWN_ERROR,
+		// 		format: "Failed to launch DAP adapter/debugger: {failMessage}",
+		// 		variables: { failMessage },
+		// 		showUser: true,
+		// 	});
+		// }
 	}
 
 	protected setFunctionBreakPointsRequest(
@@ -305,6 +330,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		args: DebugProtocol.SetFunctionBreakpointsArguments,
 		request?: DebugProtocol.Request,
 	): void {
+		console.log("setFunctionBreakPointsRequest");
 		this.sendResponse(response);
 	}
 
@@ -312,6 +338,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.SetBreakpointsResponse,
 		args: DebugProtocol.SetBreakpointsArguments,
 	): Promise<void> {
+		console.log("setBreakPointsRequest");
 		const path = args.source.path as string;
 		const clientLines = args.lines || [];
 
@@ -345,6 +372,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		args: DebugProtocol.BreakpointLocationsArguments,
 		request?: DebugProtocol.Request,
 	): void {
+		console.log("breakpointLocationsRequest");
 		// if (args.source.path) {
 		// 	const bps = this._runtime.getBreakpoints(
 		// 		args.source.path,
@@ -370,6 +398,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.SetExceptionBreakpointsResponse,
 		args: DebugProtocol.SetExceptionBreakpointsArguments,
 	): Promise<void> {
+		console.log("setExceptionBreakPointsRequest");
 		let namedException: string | undefined = undefined;
 		let otherExceptions = false;
 
@@ -401,6 +430,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.ExceptionInfoResponse,
 		args: DebugProtocol.ExceptionInfoArguments,
 	) {
+		console.log("exceptionInfoRequest");
 		response.body = {
 			exceptionId: "Exception ID",
 			description: "This is a descriptive description of the exception.",
@@ -415,6 +445,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	}
 
 	protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
+		console.log("threadsRequest");
 		// runtime supports no threads so just return a default thread.
 		response.body = {
 			threads: [
@@ -429,6 +460,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.StackTraceResponse,
 		args: DebugProtocol.StackTraceArguments,
 	): void {
+		console.log("stackTraceRequest");
 		const startFrame = typeof args.startFrame === "number" ? args.startFrame : 0;
 		const maxLevels = typeof args.levels === "number" ? args.levels : 1000;
 		const endFrame = startFrame + maxLevels;
@@ -467,6 +499,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.ScopesResponse,
 		args: DebugProtocol.ScopesArguments,
 	): void {
+		console.log("scopesRequest");
 		response.body = {
 			scopes: [
 				new Scope("Locals", this._variableHandles.create("locals"), false),
@@ -480,6 +513,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.WriteMemoryResponse,
 		{ data, memoryReference, offset = 0 }: DebugProtocol.WriteMemoryArguments,
 	) {
+		console.log("writeMemoryRequest");
 		const variable = this._variableHandles.get(Number(memoryReference));
 		if (typeof variable === "object") {
 			const decoded = base64.toByteArray(data);
@@ -497,6 +531,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.ReadMemoryResponse,
 		{ offset = 0, count, memoryReference }: DebugProtocol.ReadMemoryArguments,
 	) {
+		console.log("readMemoryRequest");
 		const variable = this._variableHandles.get(Number(memoryReference));
 		// if (typeof variable === "object" && variable.memory) {
 		// 	const memory = variable.memory.subarray(
@@ -525,6 +560,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		args: DebugProtocol.VariablesArguments,
 		request?: DebugProtocol.Request,
 	): Promise<void> {
+		console.log("variablesRequest");
 		// let vs: RuntimeVariable[] = [];
 
 		// const v = this._variableHandles.get(args.variablesReference);
@@ -554,6 +590,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.SetVariableResponse,
 		args: DebugProtocol.SetVariableArguments,
 	): void {
+		console.log("setVariableRequest");
 		const container = this._variableHandles.get(args.variablesReference);
 		// const rv =
 		// 	container === "locals"
@@ -578,6 +615,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.ContinueResponse,
 		args: DebugProtocol.ContinueArguments,
 	): void {
+		console.log("continueRequest");
 		// this._runtime.continue(false);
 		this.sendResponse(response);
 	}
@@ -586,6 +624,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.ReverseContinueResponse,
 		args: DebugProtocol.ReverseContinueArguments,
 	): void {
+		console.log("reverseContinueRequest");
 		// this._runtime.continue(true);
 		this.sendResponse(response);
 	}
@@ -594,6 +633,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.NextResponse,
 		args: DebugProtocol.NextArguments,
 	): void {
+		console.log("nextRequest");
 		// this._runtime.step(args.granularity === "instruction", false);
 		this.sendResponse(response);
 	}
@@ -602,6 +642,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.StepBackResponse,
 		args: DebugProtocol.StepBackArguments,
 	): void {
+		console.log("stepBackRequest");
 		// this._runtime.step(args.granularity === "instruction", true);
 		this.sendResponse(response);
 	}
@@ -610,6 +651,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.StepInTargetsResponse,
 		args: DebugProtocol.StepInTargetsArguments,
 	) {
+		console.log("stepInTargetsRequest");
 		// const targets = this._runtime.getStepInTargets(args.frameId);
 		// response.body = {
 		// 	targets: targets.map((t) => {
@@ -623,6 +665,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.StepInResponse,
 		args: DebugProtocol.StepInArguments,
 	): void {
+		console.log("stepInRequest");
 		// this._runtime.stepIn(args.targetId);
 		this.sendResponse(response);
 	}
@@ -631,6 +674,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.StepOutResponse,
 		args: DebugProtocol.StepOutArguments,
 	): void {
+		console.log("stepOutRequest");
 		// this._runtime.stepOut();
 		this.sendResponse(response);
 	}
@@ -639,6 +683,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.EvaluateResponse,
 		args: DebugProtocol.EvaluateArguments,
 	): Promise<void> {
+		console.log("evaluateRequest");
 		let reply: string | undefined;
 		// let rv: RuntimeVariable | undefined;
 
@@ -723,6 +768,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.SetExpressionResponse,
 		args: DebugProtocol.SetExpressionArguments,
 	): void {
+		console.log("setExpressionRequest");
 		// if (args.expression.startsWith("$")) {
 		// 	const rv = this._runtime.getLocalVariable(args.expression.substr(1));
 		// 	if (rv) {
@@ -751,6 +797,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.DataBreakpointInfoResponse,
 		args: DebugProtocol.DataBreakpointInfoArguments,
 	): void {
+		console.log("dataBreakpointInfoRequest");
 		response.body = {
 			dataId: null,
 			description: "cannot break on data access",
@@ -780,6 +827,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.SetDataBreakpointsResponse,
 		args: DebugProtocol.SetDataBreakpointsArguments,
 	): void {
+		console.log("setDataBreakpointsRequest");
 		// clear all data breakpoints
 		// this._runtime.clearAllDataBreakpoints();
 
@@ -801,6 +849,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.CompletionsResponse,
 		args: DebugProtocol.CompletionsArguments,
 	): void {
+		console.log("completionsRequest");
 		response.body = {
 			targets: [
 				{
@@ -837,6 +886,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.CancelResponse,
 		args: DebugProtocol.CancelArguments,
 	) {
+		console.log("cancelRequest");
 		if (args.requestId) {
 			this._cancellationTokens.set(args.requestId, true);
 		}
@@ -849,6 +899,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.DisassembleResponse,
 		args: DebugProtocol.DisassembleArguments,
 	) {
+		console.log("disassembleRequest");
 		const memoryInt = args.memoryReference.slice(3);
 		const baseAddress = Number.parseInt(memoryInt);
 		const offset = args.instructionOffset || 0;
@@ -891,6 +942,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.SetInstructionBreakpointsResponse,
 		args: DebugProtocol.SetInstructionBreakpointsArguments,
 	) {
+		console.log("setInstructionBreakpointsRequest");
 		// clear all instruction breakpoints
 		// this._runtime.clearInstructionBreakpoints();
 
@@ -910,6 +962,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	}
 
 	protected customRequest(command: string, response: DebugProtocol.Response, args: unknown) {
+		console.log("customRequest");
 		if (command === "toggleFormatting") {
 			this._valuesInHex = !this._valuesInHex;
 			if (this._useInvalidatedEvent) {

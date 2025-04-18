@@ -69,10 +69,7 @@
 	},
 	"main": "./dist/extension.js",
 	"browser": "./dist/web-extension.js",
-	"activationEvents": [
-		"onDebugResolve:cc65-dbg",
-		"onDebugDynamicConfigurations:cc65-dbg"
-	],
+	"activationEvents": ["onDebugResolve:cc65-dbg", "onDebugDynamicConfigurations:cc65-dbg"],
 	"workspaceTrust": {
 		"request": "never"
 	},
@@ -147,16 +144,26 @@
 				"type": "cc65-dbg",
 				"languages": ["ca65", "cc65", "rpw65"],
 				"label": "cc65-dbg Debug",
-				"program": "./out/debugAdapter.js",
-				"runtime": "node",
 				"configurationAttributes": {
 					"launch": {
-						"required": ["program"],
+						"required": ["program", "command"],
 						"properties": {
 							"program": {
 								"type": "string",
 								"format": "uri-reference",
-								"description": "Absolute path to a debugger or adapter."
+								"description": "Path of program to be debugged (debugee)."
+							},
+							"command": {
+								"type": "string",
+								"format": "uri-reference",
+								"description": "The command or path of the debug adapter executable."
+							},
+							"args": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "The arguments passed to the debug adapter executable."
 							},
 							"stopOnEntry": {
 								"type": "boolean",
@@ -177,13 +184,36 @@
 								"type": "string",
 								"description": "Absolute path to the working directory.",
 								"default": "${cwd}"
+							}
+						}
+					},
+					"attach": {
+						"required": ["program", "port"],
+						"properties": {
+							"program": {
+								"type": "string",
+								"format": "uri-reference",
+								"description": "Path of program to be debugged (debugee)."
 							},
-							"args": {
-								"type": "array",
-								"items": {
-									"type": "string"
-								},
-								"description": "Debugee arguments."
+							"port": {
+								"type": "number",
+								"description": "TCP port to attach to."
+							},
+							"host": {
+								"type": "string",
+								"format": "uri-reference",
+								"description": "TCP host to attach to.",
+								"default": true
+							},
+							"trace": {
+								"type": "boolean",
+								"description": "Enable logging of the Debug Adapter Protocol.",
+								"default": true
+							},
+							"noDebug": {
+								"type": "boolean",
+								"description": "Run without debugging.",
+								"default": false
 							}
 						}
 					}
