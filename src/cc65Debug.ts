@@ -13,6 +13,7 @@
 import {
 	Breakpoint,
 	BreakpointEvent,
+	ExitedEvent,
 	Handles,
 	InitializedEvent,
 	InvalidatedEvent,
@@ -74,6 +75,8 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private static threadID = 1;
 
 	private _program: ChildProcessWithoutNullStreams | undefined;
+
+	private _launchedSuccessfully = false;
 
 	private _variableHandles = new Handles<"locals" | "globals">();
 
@@ -221,6 +224,9 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		);
 
 		if (args.terminateDebuggee) {
+			this._program?.stdin.destroy();
+			this._program?.stdout.destroy();
+			this._program?.stderr.destroy();
 			this._program?.kill("SIGTERM");
 		}
 	}
@@ -243,16 +249,15 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		await this._configurationDone.wait(1000);
 
 		// start the program
-		console.log("spawn", { args, cwd: path.parse(args.cwd || ".").dir });
+		this._launchedSuccessfully = false;
 		this._program = spawn(args.program, args.args, {
 			cwd: path.parse(args.cwd || ".").dir,
 		});
 
-		let failMessage = "---";
+		let failMessage = "";
 		this._program.on("error", (err) => {
 			// failed to spawn, exit early
 			failMessage = err.message;
-			// retry = retryLimit;
 			console.log(`launch error: ${err.message}`);
 		});
 
@@ -264,15 +269,26 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			console.error(`stderr: ${data}`);
 		});
 
-		this._program.on("close", (code) => {
-			console.log(`child process exited with code ${code}`);
+		this._program.on("close", (_code) => {
+			// stdio streams closed
+			if (this._launchedSuccessfully) {
+				this.sendEvent(new TerminatedEvent());
+			}
 		});
 
-		while (this._program.pid == null && this._program.exitCode == null) {
+		this._program.on("exit", (code) => {
+			// process terminated
+			if (this._launchedSuccessfully) {
+				this.sendEvent(new ExitedEvent(code || 0));
+			}
+		});
+
+		while (!this._program.pid == null && this._program.exitCode == null) {
 			await timeout(500);
 		}
 
-		if (this._program.pid != null) {
+		if (this._program.pid) {
+			this._launchedSuccessfully = true;
 			this.sendResponse(response);
 		} else {
 			this.sendErrorResponse(response, {
