@@ -107,7 +107,7 @@ export function activateDebug(
 	);
 
 	if (!factory) {
-		factory = new InlineDebugAdapterFactory();
+		factory = new Cc65DebugAdapterFactory();
 	}
 	context.subscriptions.push(
 		vscode.debug.registerDebugAdapterDescriptorFactory("cc65-dbg", factory),
@@ -151,15 +151,7 @@ class Cc65ConfigurationProvider implements vscode.DebugConfigurationProvider {
 	}
 }
 
-function pathToUri(path: string) {
-	try {
-		return vscode.Uri.file(path);
-	} catch (e) {
-		return vscode.Uri.parse(path);
-	}
-}
-
-class InlineDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
+class Cc65DebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
 	createDebugAdapterDescriptor(
 		_session: vscode.DebugSession,
 	): ProviderResult<vscode.DebugAdapterDescriptor> {
