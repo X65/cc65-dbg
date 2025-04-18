@@ -71,8 +71,7 @@
 	"browser": "./dist/web-extension.js",
 	"activationEvents": [
 		"onDebugResolve:cc65-dbg",
-		"onDebugDynamicConfigurations:cc65-dbg",
-		"onCommand:extension.cc65-dbg.getProgramName"
+		"onDebugDynamicConfigurations:cc65-dbg"
 	],
 	"workspaceTrust": {
 		"request": "never"
@@ -156,8 +155,8 @@
 						"properties": {
 							"program": {
 								"type": "string",
-								"description": "Absolute path to a text file.",
-								"default": "${workspaceFolder}/${command:AskForProgramName}"
+								"format": "uri-reference",
+								"description": "Absolute path to a debugger or adapter."
 							},
 							"stopOnEntry": {
 								"type": "boolean",
@@ -180,7 +179,10 @@
 								"default": "${cwd}"
 							},
 							"args": {
-								"type": "string",
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
 								"description": "Debugee arguments."
 							}
 						}

@@ -49,9 +49,7 @@ export function deactivate() {
 	// nothing to do
 }
 
-class DebugAdapterExecutableFactory
-	implements vscode.DebugAdapterDescriptorFactory
-{
+class DebugAdapterExecutableFactory implements vscode.DebugAdapterDescriptorFactory {
 	// The following use of a DebugAdapter factory shows how to control what debug adapter executable is used.
 	// Since the code implements the default behavior, it is absolutely not neccessary and we show it here only for educational purpose.
 
@@ -77,9 +75,7 @@ class DebugAdapterExecutableFactory
 	}
 }
 
-class DebugAdapterServerDescriptorFactory
-	implements vscode.DebugAdapterDescriptorFactory
-{
+class DebugAdapterServerDescriptorFactory implements vscode.DebugAdapterDescriptorFactory {
 	private server?: Net.Server;
 
 	createDebugAdapterDescriptor(
@@ -89,16 +85,14 @@ class DebugAdapterServerDescriptorFactory
 		if (!this.server) {
 			// start listening on a random port
 			this.server = Net.createServer((socket) => {
-				const session = new Cc65DebugSession(workspaceFileAccessor);
+				const session = new Cc65DebugSession();
 				session.setRunAsServer(true);
 				session.start(socket as NodeJS.ReadableStream, socket);
 			}).listen(0);
 		}
 
 		// make VS Code connect to debug server
-		return new vscode.DebugAdapterServer(
-			(this.server.address() as Net.AddressInfo).port,
-		);
+		return new vscode.DebugAdapterServer((this.server.address() as Net.AddressInfo).port);
 	}
 
 	dispose() {
