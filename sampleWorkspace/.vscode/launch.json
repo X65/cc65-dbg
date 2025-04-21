@@ -10,7 +10,7 @@
       "name": "Debug file",
       "program": "hello_world.bin",
       "command": "../../emu/build/emu",
-      "args": ["--dap", "${program}"],
+      "args": ["--dap"],
       "stopOnEntry": true,
       "cwd": "${workspaceFolder}",
       "trace": true
