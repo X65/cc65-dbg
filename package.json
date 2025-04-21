@@ -38,7 +38,6 @@
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"esbuild-base": "esbuild ./src/extension.ts --bundle --tsconfig=./tsconfig.json --external:vscode --format=cjs --platform=node --outfile=dist/extension.js",
 		"watch": "npm run -S esbuild-base -- --sourcemap --sources-content=false --watch",
-		"esbuild-web": "esbuild ./src/web-extension.ts --bundle --tsconfig=./tsconfig.json --external:vscode --format=cjs --platform=browser --outfile=dist/web-extension.js",
 		"watch-web": "npm run -S esbuild-web -- --sourcemap --sources-content=false --watch",
 		"build": "npm run -S esbuild-base -- --sourcemap --sources-content=false && npm run -S esbuild-web -- --sourcemap --sources-content=false",
 		"package": "vsce package",
@@ -50,7 +49,6 @@
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
 		"@types/glob": "^8.1.0",
-		"@types/mocha": "^10.0.10",
 		"@types/node": "^22.14.1",
 		"@types/vscode": "^1.99.1",
 		"@vscode/debugadapter": "^1.68.0",
@@ -61,14 +59,13 @@
 		"esbuild": "^0.25.2",
 		"events": "^3.3.0",
 		"glob": "^8.1.0",
-		"mocha": "^11.1.0",
 		"path-browserify": "^1.0.1",
 		"rimraf": "^6.0.1",
 		"typescript": "^5.8.3",
 		"url": "^0.11.4"
 	},
 	"main": "./dist/extension.js",
-	"browser": "./dist/web-extension.js",
+	"browser": "./dist/extension.js",
 	"activationEvents": ["onDebugResolve:cc65-dbg", "onDebugDynamicConfigurations:cc65-dbg"],
 	"workspaceTrust": {
 		"request": "never"
