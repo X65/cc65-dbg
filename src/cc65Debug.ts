@@ -20,14 +20,17 @@ import {
 } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
-import * as path from "path";
-import { ChildProcess, type ChildProcessWithoutNullStreams, spawn } from "child_process";
+import * as path from "node:path";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { sleep } from "./utils";
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
 	DAP_SPAWN_ERROR = 1001,
+	DAP_CONNECT_ERROR = 1002,
 }
+
+const TWO_CRLF = "\r\n\r\n";
 
 /**
  * This interface describes the cc65-dbg specific launch attributes
@@ -65,6 +68,8 @@ interface IAttachRequestArguments extends IRequestArguments {
 export class Cc65DebugSession extends LoggingDebugSession {
 	private _session: DebugSession;
 
+	private _initSeq = 0;
+
 	private _launchedSuccessfully = false;
 	private _program: ChildProcessWithoutNullStreams | undefined;
 
@@ -90,37 +95,158 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	}
 
 	/**
-	 * Log every incoming message for development purposes.
+	 * Handles incoming Debug Adapter Protocol messages.
+	 *
+	 * This function processes incoming messages and routes them appropriately.
+	 * Some messages need to massaged before sending to debugger/adapter.
+	 * For all other requests, it sends the message directly.
 	 */
 	public handleMessage(message: DebugProtocol.ProtocolMessage) {
 		console.debug(">>> message", message);
-		return super.handleMessage(message);
+		if (message.type === "request")
+			switch ((message as DebugProtocol.Request).command) {
+				case "initialize":
+					// pass to dispatcher
+					return super.handleMessage(message);
+				default:
+					// route to debugger/adapter
+					return this.sendMessage(message);
+			}
 	}
 
-	private async launchAdapter(
+	/**
+	 * Sends a Debug Adapter Protocol message to the debugger/adapter.
+	 *
+	 * This function serializes the message to JSON, calculates its length,
+	 * prepares a header with the content length, and writes both the header
+	 * and the message to the stdin of the debugger/adapter process.
+	 *
+	 * @param message - The Debug Adapter Protocol message to be sent.
+	 *                  This should be an object conforming to the DebugProtocol.ProtocolMessage interface.
+	 */
+	protected sendMessage(message: DebugProtocol.ProtocolMessage) {
+		console.debug("sendMessage", message);
+		const json = JSON.stringify(message);
+		const contentLength = Buffer.byteLength(json, "utf8");
+
+		const header = `Content-Length: ${contentLength}\r\n\r\n`;
+
+		if (this._program) {
+			this._program.stdin.write(header + json, "utf8");
+		}
+	}
+
+	public sendResponse(response: DebugProtocol.Response) {
+		console.debug("sendResponse", response);
+		super.sendResponse(response);
+	}
+
+	/**
+	 * Handles incoming messages from the debugger/adapter process.
+	 *
+	 * @param data - A Buffer containing the raw data of the incoming message.
+	 *               This data is expected to be in the Debug Adapter Protocol format.
+	 */
+	protected incomingMessage(data: Buffer) {
+		console.debug("incomingMessage", data.toString());
+
+		const idx = data.indexOf(TWO_CRLF);
+		let contentLength = 0;
+		if (idx !== -1) {
+			const header = data.toString("utf8", 0, idx);
+			const lines = header.split("\r\n");
+			for (let i = 0; i < lines.length; i++) {
+				const pair = lines[i].split(/: +/);
+				if (pair[0] === "Content-Length") {
+					contentLength = +pair[1];
+				}
+			}
+			// biome-ignore lint/style/noParameterAssign: legacy code
+			data = data.slice(idx + TWO_CRLF.length);
+		}
+
+		if (data.length >= contentLength) {
+			const message = data.toString("utf8", 0, contentLength);
+			if (message.length > 0) {
+				try {
+					const msg: DebugProtocol.ProtocolMessage = JSON.parse(message);
+					switch (msg.type) {
+						case "response":
+							return this.processResponse(msg as DebugProtocol.Response);
+						case "event":
+							return this.processEvent(msg as DebugProtocol.Event);
+						default:
+							throw new Error(`Unknown message type: ${msg.type}`);
+					}
+				} catch (e) {
+					console.error(`Error handling data: ${(e as Error)?.message}`);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Dispatches a received response message to the appropriate handler.
+	 *
+	 * @param response - The received response message.
+	 *                   This should be an object conforming to the DebugProtocol.Response interface.
+	 */
+	protected processResponse(response: DebugProtocol.Response) {
+		console.debug("dispatchResponse", response);
+		switch (response.command) {
+			case "initialize": {
+				const result = response as DebugProtocol.InitializeResponse;
+				if (!result.body) result.body = {};
+				result.seq = this._initSeq;
+				result.body.supportsInstructionBreakpoints = true;
+				return this.sendResponse(result);
+			}
+		}
+		return this.sendResponse(response);
+	}
+
+	/**
+	 * Dispatches an incoming event message to the appropriate handler.
+	 *
+	 * @param event - The received event message.
+	 *                 This should be an object conforming to the DebugProtocol.Event interface.
+	 */
+	protected processEvent(event: DebugProtocol.Event) {
+		console.debug("dispatchEvent", event);
+		return this.sendEvent(event);
+	}
+
+	/**
+	 * Launches the debugger/adapter process.
+	 *
+	 * @param command - The full path to the debugger/adapter binary.
+	 * @param args - Additional arguments to pass to the debugger/adapter.
+	 * @param cwd - The working directory for the debugger/adapter.
+	 * @returns A promise that resolves to null if the launch was successful, or a failure message string if it failed.
+	 */
+	protected async launchAdapter(
 		command: string,
 		args: string[],
 		cwd: string,
 	): Promise<string | null> {
 		console.debug("launchAdapter", command, args, cwd);
 
-		this._program = spawn(command, args, {
-			cwd: path.parse(cwd || ".").dir,
-		});
+		this._program = spawn(command, args, { cwd });
 
 		let failMessage: string | null = null;
 		this._program.on("error", (err) => {
 			// failed to spawn, exit early
 			failMessage = err.message;
-			console.log(`launch error: ${err.message}`);
+			logger.error(`launch error: ${err.message}`);
 		});
 
-		this._program.stdout.on("data", (data) => {
-			console.log(`stdout: ${data}`);
+		this._program.stdout.on("data", (data: Buffer) => {
+			this.incomingMessage(data);
 		});
 
 		this._program.stderr.on("data", (data) => {
-			console.error(`stderr: ${data}`);
+			console.error(data.toString());
+			logger.error(`stderr: ${data}`);
 		});
 
 		this._program.on("close", (_code) => {
@@ -147,7 +273,12 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			: failMessage || String(this._program.exitCode);
 	}
 
-	private connectAdapter() {}
+	/**
+	 * Attempts to connect to an existing debugger adapter.
+	 */
+	protected connectAdapter(port: number, host: string): Promise<string | null> {
+		throw new Error("Connecting to existing debugger not supported yet.");
+	}
 
 	/**
 	 * The 'initialize' request is the first request called by the frontend
@@ -157,9 +288,12 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		response: DebugProtocol.InitializeResponse,
 		args: DebugProtocol.InitializeRequestArguments,
 	) {
-		console.log("initializeRequest", args);
+		console.log("initializeRequest", args, response);
 
 		const { request } = this._session.configuration;
+
+		// store the initialase seq to reconstruct in response
+		this._initSeq = response.seq;
 
 		switch (request) {
 			case "launch":
@@ -182,6 +316,21 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				}
 				break;
 
+			case "attach":
+				{
+					const { port, host = "localhost" } = this._session.configuration;
+					const failMessage = await this.connectAdapter(port, host);
+					if (failMessage)
+						return this.sendErrorResponse(response, {
+							id: ErrorCodes.DAP_CONNECT_ERROR,
+							format: "Failed to connect DAP adapter/debugger: {failMessage}",
+							variables: { failMessage },
+							showUser: true,
+						});
+					this._launchedSuccessfully = true;
+				}
+				break;
+
 			default:
 				return this.sendErrorResponse(response, {
 					id: ErrorCodes.DAP_NOT_SUPPORTED,
@@ -191,9 +340,13 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				});
 		}
 
-		// TODO: get actual configuration from debugger
-
-		this.sendResponse(response);
+		// Get configuration from debugger
+		this.sendMessage({
+			seq: response.request_seq,
+			type: "request",
+			command: response.command,
+			arguments: args,
+		} as DebugProtocol.InitializeRequest);
 	}
 
 	protected async attachRequest(
