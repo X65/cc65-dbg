@@ -70,7 +70,6 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 	private _data: Buffer;
 	private _dataLength: number;
-	private _initSeq = 0;
 
 	private _launchedSuccessfully = false;
 	private _program: ChildProcessWithoutNullStreams | undefined;
@@ -141,9 +140,16 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		}
 	}
 
-	public sendResponse(response: DebugProtocol.Response) {
+	public sendResponse(response: DebugProtocol.Response): void {
+		response.seq = 0; // underlying adapter tracks the sequence numbers on its own
 		console.debug("sendResponse", response);
 		super.sendResponse(response);
+	}
+
+	public sendEvent(event: DebugProtocol.Event): void {
+		event.seq = 0; // underlying adapter tracks the sequence numbers on its own
+		console.debug("sendEvent", event);
+		super.sendEvent(event);
 	}
 
 	/**
@@ -208,12 +214,12 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 *                   This should be an object conforming to the DebugProtocol.Response interface.
 	 */
 	protected processResponse(response: DebugProtocol.Response) {
-		console.debug("dispatchResponse", response);
+		console.debug("processResponse", response);
 		switch (response.command) {
 			case "initialize": {
 				const result = response as DebugProtocol.InitializeResponse;
+
 				if (!result.body) result.body = {};
-				result.seq = this._initSeq;
 				result.body.supportsInstructionBreakpoints = true;
 				return this.sendResponse(result);
 			}
@@ -228,7 +234,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 *                 This should be an object conforming to the DebugProtocol.Event interface.
 	 */
 	protected processEvent(event: DebugProtocol.Event) {
-		console.debug("dispatchEvent", event);
+		console.debug("processEvent", event);
 		return this.sendEvent(event);
 	}
 
@@ -307,9 +313,6 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		console.log("initializeRequest", args, response);
 
 		const { request } = this._session.configuration;
-
-		// store the initialize seq to reconstruct in response
-		this._initSeq = response.seq;
 
 		switch (request) {
 			case "launch":
