@@ -16,13 +16,11 @@ import {
 	Logger,
 	logger,
 	TerminatedEvent,
-	ExitedEvent,
 } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
 import * as path from "node:path";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { sleep } from "./utils";
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
@@ -71,7 +69,6 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private _data: Buffer;
 	private _dataLength: number;
 
-	private _launchedSuccessfully = false;
 	private _program: ChildProcessWithoutNullStreams | undefined;
 
 	/**
@@ -135,9 +132,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 		const header = `Content-Length: ${contentLength}\r\n\r\n`;
 
-		if (this._program) {
-			this._program.stdin.write(header + json, "utf8");
-		}
+		this._program?.stdin.write(header + json, "utf8");
 	}
 
 	public sendResponse(response: DebugProtocol.Response): void {
@@ -246,59 +241,51 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 * @param cwd - The working directory for the debugger/adapter.
 	 * @returns A promise that resolves to null if the launch was successful, or a failure message string if it failed.
 	 */
-	protected async launchAdapter(
-		command: string,
-		args: string[],
-		cwd: string,
-	): Promise<string | null> {
+	protected launchAdapter(command: string, args: string[], cwd: string): Promise<void> {
 		console.debug("launchAdapter", command, args, cwd);
 
-		this._program = spawn(command, args, { cwd });
+		return new Promise((resolve, reject) => {
+			const spawnErrorHandler = (err: Error) => {
+				logger.error(`spawn error: ${err.message}`);
+				reject(err);
+			};
 
-		let failMessage: string | null = null;
-		this._program.on("error", (err) => {
-			// failed to spawn, exit early
-			failMessage = err.message;
-			logger.error(`launch error: ${err.message}`);
+			this._program = spawn(command, args, { cwd });
+
+			this._program.once("error", spawnErrorHandler);
+			this._program.once("spawn", () => {
+				if (!this._program) throw new Error("adapter disappeared");
+
+				this._program.off("error", spawnErrorHandler);
+
+				this._program.stdout.on("data", (data: Buffer) => {
+					this._processData(data);
+				});
+
+				this._program.stderr.on("data", (data) => {
+					console.error(data.toString());
+					logger.error(`stderr: ${data}`);
+				});
+
+				this._program.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+					// stdio streams closed
+					this.sendEvent(new TerminatedEvent());
+					if (signal && signal !== "SIGTERM") {
+						const errorMsg = `Adapter process was terminated by signal ${signal}`;
+						logger.error(errorMsg);
+						console.error(errorMsg);
+					}
+				});
+
+				resolve();
+			});
 		});
-
-		this._program.stdout.on("data", (data: Buffer) => {
-			this._processData(data);
-		});
-
-		this._program.stderr.on("data", (data) => {
-			console.error(data.toString());
-			logger.error(`stderr: ${data}`);
-		});
-
-		this._program.on("close", (_code) => {
-			// stdio streams closed
-			if (this._launchedSuccessfully) {
-				this.sendEvent(new TerminatedEvent());
-			}
-		});
-
-		this._program.on("exit", (code) => {
-			// process terminated
-			if (this._launchedSuccessfully) {
-				this.sendEvent(new ExitedEvent(code || 0));
-			}
-		});
-
-		while (this._program.pid == null && this._program.exitCode == null) {
-			await sleep(100);
-		}
-
-		console.log(this._program.pid, this._program.exitCode, failMessage);
-		return this._program.exitCode == null
-			? null
-			: failMessage || String(this._program.exitCode);
 	}
 
 	/**
 	 * Attempts to connect to an existing debugger adapter.
 	 */
-	protected connectAdapter(port: number, host: string): Promise<string | null> {
+	protected connectAdapter(port: number, host: string): Promise<void> {
 		throw new Error("Connecting to existing debugger not supported yet.");
 	}
 
@@ -322,31 +309,32 @@ export class Cc65DebugSession extends LoggingDebugSession {
 						this._session.workspaceFolder?.uri.fsPath || ".",
 						command,
 					);
-					this._launchedSuccessfully = false;
-					const failMessage = await this.launchAdapter(cmd, cmd_args, cwd);
-					if (failMessage)
+					try {
+						await this.launchAdapter(cmd, cmd_args, cwd);
+					} catch (error) {
 						return this.sendErrorResponse(response, {
 							id: ErrorCodes.DAP_SPAWN_ERROR,
-							format: "Failed to launch DAP adapter/debugger: {failMessage}",
-							variables: { failMessage },
+							format: "Failed to launch DAP adapter/debugger: {error}",
+							variables: { error: String(error) },
 							showUser: true,
 						});
-					this._launchedSuccessfully = true;
+					}
 				}
 				break;
 
 			case "attach":
 				{
 					const { port, host = "localhost" } = this._session.configuration;
-					const failMessage = await this.connectAdapter(port, host);
-					if (failMessage)
+					try {
+						await this.connectAdapter(port, host);
+					} catch (error) {
 						return this.sendErrorResponse(response, {
 							id: ErrorCodes.DAP_CONNECT_ERROR,
-							format: "Failed to connect DAP adapter/debugger: {failMessage}",
-							variables: { failMessage },
+							format: "Failed to connect DAP adapter/debugger: {error}",
+							variables: { error: String(error) },
 							showUser: true,
 						});
-					this._launchedSuccessfully = true;
+					}
 				}
 				break;
 
