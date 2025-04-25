@@ -68,6 +68,8 @@ interface IAttachRequestArguments extends IRequestArguments {
 export class Cc65DebugSession extends LoggingDebugSession {
 	private _session: DebugSession;
 
+	private _data: Buffer;
+	private _dataLength: number;
 	private _initSeq = 0;
 
 	private _launchedSuccessfully = false;
@@ -82,6 +84,9 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		console.log("constructor", session);
 
 		this._session = session;
+
+		this._data = Buffer.alloc(0);
+		this._dataLength = 0;
 
 		// this debugger uses one-based lines and columns
 		this.setDebuggerLinesStartAt1(true);
@@ -147,41 +152,52 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 * @param data - A Buffer containing the raw data of the incoming message.
 	 *               This data is expected to be in the Debug Adapter Protocol format.
 	 */
-	protected incomingMessage(data: Buffer) {
-		console.debug("incomingMessage", data.toString());
+	private _processData(data: Buffer): void {
+		console.debug("_processData", data.toString());
 
-		const idx = data.indexOf(TWO_CRLF);
-		let contentLength = 0;
-		if (idx !== -1) {
-			const header = data.toString("utf8", 0, idx);
-			const lines = header.split("\r\n");
-			for (let i = 0; i < lines.length; i++) {
-				const pair = lines[i].split(/: +/);
-				if (pair[0] === "Content-Length") {
-					contentLength = +pair[1];
-				}
-			}
-			// biome-ignore lint/style/noParameterAssign: legacy code
-			data = data.slice(idx + TWO_CRLF.length);
-		}
+		this._data = Buffer.concat([this._data, data]);
 
-		if (data.length >= contentLength) {
-			const message = data.toString("utf8", 0, contentLength);
-			if (message.length > 0) {
-				try {
-					const msg: DebugProtocol.ProtocolMessage = JSON.parse(message);
-					switch (msg.type) {
-						case "response":
-							return this.processResponse(msg as DebugProtocol.Response);
-						case "event":
-							return this.processEvent(msg as DebugProtocol.Event);
-						default:
-							throw new Error(`Unknown message type: ${msg.type}`);
+		while (true) {
+			if (this._dataLength >= 0) {
+				if (this._data.length >= this._dataLength) {
+					const message = this._data.toString("utf8", 0, this._dataLength);
+					this._data = this._data.slice(this._dataLength);
+					this._dataLength = -1;
+					if (message.length > 0) {
+						try {
+							const msg: DebugProtocol.ProtocolMessage = JSON.parse(message);
+							switch (msg.type) {
+								case "response":
+									this.processResponse(msg as DebugProtocol.Response);
+									break;
+								case "event":
+									this.processEvent(msg as DebugProtocol.Event);
+									break;
+								default:
+									throw new Error(`Unknown message type: ${msg.type}`);
+							}
+						} catch (e) {
+							console.error(`Error handling data: ${(e as Error)?.message}`);
+						}
 					}
-				} catch (e) {
-					console.error(`Error handling data: ${(e as Error)?.message}`);
+					continue; // there may be more complete messages to process
+				}
+			} else {
+				const idx = this._data.indexOf(TWO_CRLF);
+				if (idx !== -1) {
+					const header = this._data.toString("utf8", 0, idx);
+					const lines = header.split("\r\n");
+					for (let i = 0; i < lines.length; i++) {
+						const pair = lines[i].split(/: +/);
+						if (pair[0] === "Content-Length") {
+							this._dataLength = +pair[1];
+						}
+					}
+					this._data = this._data.slice(idx + TWO_CRLF.length);
+					continue;
 				}
 			}
+			break;
 		}
 	}
 
@@ -241,7 +257,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		});
 
 		this._program.stdout.on("data", (data: Buffer) => {
-			this.incomingMessage(data);
+			this._processData(data);
 		});
 
 		this._program.stderr.on("data", (data) => {
@@ -292,7 +308,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 		const { request } = this._session.configuration;
 
-		// store the initialase seq to reconstruct in response
+		// store the initialize seq to reconstruct in response
 		this._initSeq = response.seq;
 
 		switch (request) {
