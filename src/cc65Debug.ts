@@ -11,14 +11,18 @@
  * Its main job is to enrich the protocol with information obtained from cc65 debug info file.
  */
 
-import {
-	LoggingDebugSession,
-	Logger,
-	logger,
-	TerminatedEvent,
-} from "@vscode/debugadapter";
+import { LoggingDebugSession, Logger, logger, TerminatedEvent } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
+import {
+	addressToSpans,
+	type DbgMap,
+	DbgScope,
+	DbgSym,
+	readDebugFile,
+	spansToScopes,
+	spansToSpanLines,
+} from "./dbgService";
 import * as path from "node:path";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 
@@ -26,6 +30,7 @@ export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
 	DAP_SPAWN_ERROR = 1001,
 	DAP_CONNECT_ERROR = 1002,
+	DAP_ENV_INCORRECT = 1003,
 }
 
 const TWO_CRLF = "\r\n\r\n";
@@ -71,6 +76,11 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 	private _program: ChildProcessWithoutNullStreams | undefined;
 
+	/// connected over TCP port?
+	private _connected = false;
+
+	private _debugFile: DbgMap | undefined;
+
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
 	 * We configure the default implementation of a debug adapter here.
@@ -107,6 +117,10 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		if (message.type === "request")
 			switch ((message as DebugProtocol.Request).command) {
 				case "initialize":
+				case "attach":
+				case "disconnect":
+				case "setBreakpoints":
+				case "setInstructionBreakpoints":
 					// pass to dispatcher
 					return super.handleMessage(message);
 				default:
@@ -216,6 +230,26 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 				if (!result.body) result.body = {};
 				result.body.supportsInstructionBreakpoints = true;
+
+				const { program } = this._session.configuration;
+				const programPath = path.resolve(
+					this._session.workspaceFolder?.uri.fsPath || ".",
+					program,
+				);
+				const dbgPath = `${path.join(path.dirname(programPath), path.basename(programPath, path.extname(programPath)))}.dbg`;
+				try {
+					this._debugFile = readDebugFile(dbgPath);
+				} catch (error) {
+					console.error(`Error reading debug file: ${(error as Error)?.message}`);
+					//can't find file
+					return this.sendErrorResponse(response, {
+						id: ErrorCodes.DAP_ENV_INCORRECT,
+						format: "resource error: unable to find or load .dbg file: {dbgPath}",
+						variables: { dbgPath },
+						showUser: true,
+					});
+				}
+
 				return this.sendResponse(result);
 			}
 		}
@@ -348,7 +382,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		}
 
 		// Get configuration from debugger
-		this.sendMessage({
+		return this.sendMessage({
 			seq: response.request_seq,
 			type: "request",
 			command: response.command,
@@ -356,9 +390,10 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		} as DebugProtocol.InitializeRequest);
 	}
 
-	protected async attachRequest(
+	protected attachRequest(
 		response: DebugProtocol.AttachResponse,
-		args: IAttachRequestArguments,
+		args: DebugProtocol.AttachRequestArguments,
+		request?: DebugProtocol.Request,
 	) {
 		console.log("attachRequest", args);
 		return this.sendErrorResponse(response, {
@@ -368,10 +403,31 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		});
 	}
 
-	protected async launchRequest(
-		response: DebugProtocol.LaunchResponse,
-		args: ILaunchRequestArguments,
+	protected disconnectRequest(
+		response: DebugProtocol.DisconnectResponse,
+		args: DebugProtocol.DisconnectArguments,
+		request?: DebugProtocol.Request,
 	) {
-		console.log("launchRequest", args);
+		console.log("disconnectRequest", args, request);
+		if (!request) throw new Error("Original request not provided");
+
+		request.arguments.terminateDebuggee = !this._connected;
+		return this.sendMessage(request);
+	}
+
+	protected setBreakPointsRequest(
+		response: DebugProtocol.SetBreakpointsResponse,
+		args: DebugProtocol.SetBreakpointsArguments,
+		request?: DebugProtocol.Request,
+	): void {
+		console.log("setBreakPointsRequest", args);
+	}
+
+	protected setInstructionBreakpointsRequest(
+		response: DebugProtocol.SetInstructionBreakpointsResponse,
+		args: DebugProtocol.SetInstructionBreakpointsArguments,
+		request?: DebugProtocol.Request,
+	): void {
+		console.log("setInstructionBreakpointsRequest", args);
 	}
 }
