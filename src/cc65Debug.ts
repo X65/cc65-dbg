@@ -14,17 +14,10 @@
 import { LoggingDebugSession, Logger, logger, TerminatedEvent } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
-import {
-	addressToSpans,
-	type DbgMap,
-	DbgScope,
-	DbgSym,
-	readDebugFile,
-	spansToScopes,
-	spansToSpanLines,
-} from "./dbgService";
+import { type DbgMap, readDebugFile } from "./dbgService";
 import * as path from "node:path";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { unquote } from "./utils";
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
@@ -418,9 +411,46 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	protected setBreakPointsRequest(
 		response: DebugProtocol.SetBreakpointsResponse,
 		args: DebugProtocol.SetBreakpointsArguments,
-		request?: DebugProtocol.Request,
-	): void {
+		request: DebugProtocol.Request,
+	) {
 		console.log("setBreakPointsRequest", args);
+
+		const workspacePath = path.resolve(this._session.workspaceFolder?.uri.fsPath || ".");
+		const { source, breakpoints, lines } = args;
+
+		if (!source.path) throw new Error("Source path is required");
+		if (!breakpoints && !lines) throw new Error("Either breakpoints or lines are required");
+
+		const sourceLines = lines || breakpoints?.map(({ line }) => line) || [];
+
+		const sourcePath = path.normalize(
+			unquote(source.path).replaceAll(path.win32.sep, path.posix.sep),
+		);
+		const sourceBase = path.relative(workspacePath, sourcePath);
+		const dbgFile = this._debugFile?.file.find((file) => {
+			const filePath = path.normalize(
+				unquote(file.name).replaceAll(path.win32.sep, path.posix.sep),
+			);
+			return filePath.endsWith(`${path.posix.sep}${sourceBase}`);
+		});
+
+		if (!response.body) response.body = { breakpoints: [] };
+		if (!response.body.breakpoints) response.body.breakpoints = [];
+
+		if (!dbgFile) {
+			response.body.breakpoints = sourceLines.map((line) => ({
+				verified: false,
+				source,
+				line,
+				reason: "failed",
+				message: `Source file '${sourceBase}' is missing in debug info file`,
+			}));
+			return this.sendResponse(response);
+		}
+
+		console.log({ dbgFile });
+
+		return this.sendMessage(request);
 	}
 
 	protected setInstructionBreakpointsRequest(

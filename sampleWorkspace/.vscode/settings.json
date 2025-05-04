@@ -5,5 +5,6 @@
     "*.asm": "ca65",
     "*.s": "ca65",
     "*.inc": "ca65"
-  }
+  },
+  "debug.confirmOnExit": "never"
 }
