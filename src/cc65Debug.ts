@@ -24,6 +24,7 @@ export enum ErrorCodes {
 	DAP_SPAWN_ERROR = 1001,
 	DAP_CONNECT_ERROR = 1002,
 	DAP_ENV_INCORRECT = 1003,
+	DAP_PROTOCOL_VIOLATION = 1004,
 }
 
 const TWO_CRLF = "\r\n\r\n";
@@ -73,6 +74,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private _connected = false;
 
 	private _debugFile: DbgMap | undefined;
+	private _requestBreakpoints: Map<number, (number | string)[]> = new Map();
 
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
@@ -242,6 +244,36 @@ export class Cc65DebugSession extends LoggingDebugSession {
 						showUser: true,
 					});
 				}
+
+				return this.sendResponse(result);
+			}
+			case "setBreakpoints": {
+				const result = response as DebugProtocol.SetBreakpointsResponse;
+				const { breakpoints } = result.body;
+				const requestBreakpoints = this._requestBreakpoints.get(response.request_seq);
+				this._requestBreakpoints.delete(response.request_seq);
+				if (!requestBreakpoints) {
+					return this.sendErrorResponse(response, {
+						id: ErrorCodes.DAP_PROTOCOL_VIOLATION,
+						format: "Received out-of-order setBreakpoints response",
+						showUser: false,
+					});
+				}
+
+				result.body.breakpoints = requestBreakpoints.map((bp) => {
+					if (typeof bp === "number") {
+						const res = breakpoints.shift();
+						if (res) return res;
+						throw new Error(
+							`SetBreakpoints ${response.request_seq} returned less breakpoints than requested.`,
+						);
+					}
+					return {
+						verified: false,
+						reason: "failed",
+						message: bp || undefined,
+					};
+				});
 
 				return this.sendResponse(result);
 			}
@@ -448,7 +480,63 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			return this.sendResponse(response);
 		}
 
-		console.log({ dbgFile });
+		// map source lines to memory addresses
+		const { arguments: requestArguments } = request as DebugProtocol.SetBreakpointsRequest;
+
+		// unset breakpoints, as we use lines as memory addresses to break
+		requestArguments.breakpoints = undefined;
+		// update source information in the request
+		requestArguments.source = {
+			/// @name - used only for display in the UI
+			name: sourceBase,
+			/// @sourceReference - used to identify the source of breaks in the debug adapter
+			sourceReference: dbgFile.id,
+		};
+
+		const reqBreakpoints = sourceLines.map((lineNo) => {
+			const dbgLine = this._debugFile?.line.find(
+				({ file, line }) => file === dbgFile.id && line === lineNo,
+			);
+			if (!dbgLine) {
+				console.info(`Line ${lineNo} does not exist in '${sourceBase}' debug info.`);
+				return "";
+			}
+
+			if (dbgLine.span) {
+				const dbgSpans = this._debugFile?.span.filter(({ id }) =>
+					dbgLine.span?.includes(id),
+				);
+
+				for (const dbgSpan of dbgSpans || []) {
+					const dbgSeg = this._debugFile?.seg.find(({ id }) => id === dbgSpan.seg);
+					if (!dbgSeg) {
+						return `Span ${dbgSpan.id} does not exist in '${sourceBase}' debug info.`;
+					}
+
+					if (Number.isInteger(dbgSeg.start)) {
+						return dbgSeg.start + dbgSpan.start;
+					}
+
+					return `'${sourceBase}:${lineNo}' does not map to memory address.`;
+				}
+			}
+
+			const dbgSym = this._debugFile?.sym.find(({ def }) => def.includes(dbgLine.id));
+			if (dbgSym) {
+				const address = Number(dbgSym.val);
+				if (Number.isInteger(address)) {
+					return address;
+				}
+				return `Invalid memory address for symbol ${dbgSym.name} in debug info.`;
+			}
+
+			return `'${sourceBase}:${lineNo}' does not map to memory.`;
+		});
+
+		// Store for later reintegration
+		this._requestBreakpoints.set(request.seq, reqBreakpoints);
+		// Send only valid addresses to the debugger
+		requestArguments.lines = reqBreakpoints.filter((bp) => Number.isInteger(bp)) as number[];
 
 		return this.sendMessage(request);
 	}

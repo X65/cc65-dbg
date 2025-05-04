@@ -123,9 +123,9 @@ export interface DbgSym {
 	/// associated scope reference # (if any)
 	/// there is also an optional parent property for local labels
 	scope?: number;
-	/// span reference number where defined
+	/// line reference number where defined
 	def: number[];
-	/// span reference number(s) where referenced (if any)
+	/// line reference number(s) where referenced (if any)
 	ref?: number[];
 	/// address (hex)
 	val?: string;

@@ -16,6 +16,25 @@ with `.dbg` extension.
 
 [1]: https://cc65.github.io/doc/ld65.html#s7
 
+### Requirements
+
+> :warning: Following are violations of Debug Adapter Protocol, used to simplify
+> the DAP-debugger implementation for 8-bit machine emulators.
+
+The extension will present the breakpoint memory addresses as `lines` property
+of [SetBreakpoints Request][2]. Debugger does not need to know anything
+about the source structure - this is the job of the extension - just be able to
+set memory breakpoints and step through execution.
+
+[2]: https://microsoft.github.io/debug-adapter-protocol/specification#Requests_SetBreakpoints
+
+Breakpoints are presented in packs identified with `sourceReference` number
+(`0` included) of [Source][3] descriptor. Your debugger endpoint should track the
+source reference number of a breakpoint in order to remove it, when an update
+for the pack is being received.
+
+[3]: https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source
+
 ## Acknowledgements
 
 This builds on code from:
