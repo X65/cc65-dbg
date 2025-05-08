@@ -584,8 +584,10 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	protected setInstructionBreakpointsRequest(
 		response: DebugProtocol.SetInstructionBreakpointsResponse,
 		args: DebugProtocol.SetInstructionBreakpointsArguments,
-		request?: DebugProtocol.Request,
-	): void {
+		request: DebugProtocol.Request,
+	) {
 		console.log("setInstructionBreakpointsRequest", args);
+
+		return this.sendMessage(request);
 	}
 }
