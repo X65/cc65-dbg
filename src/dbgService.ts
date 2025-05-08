@@ -37,7 +37,7 @@ export interface DbgLine {
 	file: number;
 	/// source file line #
 	line: number;
-	/// line type: 0|undefined = assember (ca65)
+	/// line type: 0|undefined = assembler (ca65)
 	///            1 = external (cc65)
 	///            2 = macro (span references macro source)
 	///            3 = macro (span doesn't reference macro source but simply points to where it's invoked)

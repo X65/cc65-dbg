@@ -14,10 +14,10 @@
 import { LoggingDebugSession, Logger, logger, TerminatedEvent } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
-import { type DbgMap, readDebugFile } from "./dbgService";
+import { addressToSpans, type DbgMap, readDebugFile, spansToSpanLines } from "./dbgService";
 import * as path from "node:path";
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { unquote } from "./utils";
+import { normalizePath } from "./utils";
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
@@ -73,7 +73,8 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	/// connected over TCP port?
 	private _connected = false;
 
-	private _debugFile: DbgMap | undefined;
+	private _debugData: DbgMap | undefined;
+	private _debugPathBases: string[] = [];
 	private _requestBreakpoints: Map<number, (number | string)[]> = new Map();
 
 	/**
@@ -233,7 +234,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				);
 				const dbgPath = `${path.join(path.dirname(programPath), path.basename(programPath, path.extname(programPath)))}.dbg`;
 				try {
-					this._debugFile = readDebugFile(dbgPath);
+					this._debugData = readDebugFile(dbgPath);
 				} catch (error) {
 					console.error(`Error reading debug file: ${(error as Error)?.message}`);
 					//can't find file
@@ -274,6 +275,45 @@ export class Cc65DebugSession extends LoggingDebugSession {
 						message: bp || undefined,
 					};
 				});
+
+				return this.sendResponse(result);
+			}
+			case "stackTrace": {
+				const result = response as DebugProtocol.StackTraceResponse;
+				const { stackFrames } = result.body;
+
+				if (!this._debugData) {
+					throw new Error("Cannot work without loaded .dbg file");
+				}
+
+				// Convert memory addresses to source locations
+				for (const frame of stackFrames) {
+					const spans = addressToSpans(this._debugData, frame.line, true);
+					const lines = spansToSpanLines(this._debugData, spans);
+					const dbgLine = lines[0]?.line;
+					if (dbgLine) {
+						frame.instructionPointerReference = `0x${frame.id.toString(16).toUpperCase()}`;
+						frame.line = dbgLine.line;
+						const dbgFile = this._debugData.file.find((f) => f.id === dbgLine.file);
+						if (dbgFile) {
+							const fileName = normalizePath(dbgFile.name);
+							for (const base of this._debugPathBases) {
+								if (fileName.startsWith(base)) {
+									const name = fileName.slice(base.length);
+									frame.source = {
+										name,
+										path: path.resolve(
+											this._session.workspaceFolder?.uri.fsPath || ".",
+											name,
+										),
+										presentationHint: "emphasize",
+									};
+									break;
+								}
+							}
+						}
+					}
+				}
 
 				return this.sendResponse(result);
 			}
@@ -455,14 +495,10 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 		const sourceLines = lines || breakpoints?.map(({ line }) => line) || [];
 
-		const sourcePath = path.normalize(
-			unquote(source.path).replaceAll(path.win32.sep, path.posix.sep),
-		);
+		const sourcePath = normalizePath(source.path);
 		const sourceBase = path.relative(workspacePath, sourcePath);
-		const dbgFile = this._debugFile?.file.find((file) => {
-			const filePath = path.normalize(
-				unquote(file.name).replaceAll(path.win32.sep, path.posix.sep),
-			);
+		const dbgFile = this._debugData?.file.find((file) => {
+			const filePath = normalizePath(file.name);
 			return filePath.endsWith(`${path.posix.sep}${sourceBase}`);
 		});
 
@@ -480,6 +516,10 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			return this.sendResponse(response);
 		}
 
+		// Store path base for later name reconstruction
+		const fileBase = normalizePath(dbgFile.name).slice(0, -sourceBase.length);
+		if (!this._debugPathBases.includes(fileBase)) this._debugPathBases.push(fileBase);
+
 		// map source lines to memory addresses
 		const { arguments: requestArguments } = request as DebugProtocol.SetBreakpointsRequest;
 
@@ -494,7 +534,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		};
 
 		const reqBreakpoints = sourceLines.map((lineNo) => {
-			const dbgLine = this._debugFile?.line.find(
+			const dbgLine = this._debugData?.line.find(
 				({ file, line }) => file === dbgFile.id && line === lineNo,
 			);
 			if (!dbgLine) {
@@ -503,12 +543,12 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			}
 
 			if (dbgLine.span) {
-				const dbgSpans = this._debugFile?.span.filter(({ id }) =>
+				const dbgSpans = this._debugData?.span.filter(({ id }) =>
 					dbgLine.span?.includes(id),
 				);
 
 				for (const dbgSpan of dbgSpans || []) {
-					const dbgSeg = this._debugFile?.seg.find(({ id }) => id === dbgSpan.seg);
+					const dbgSeg = this._debugData?.seg.find(({ id }) => id === dbgSpan.seg);
 					if (!dbgSeg) {
 						return `Span ${dbgSpan.id} does not exist in '${sourceBase}' debug info.`;
 					}
@@ -521,7 +561,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				}
 			}
 
-			const dbgSym = this._debugFile?.sym.find(({ def }) => def.includes(dbgLine.id));
+			const dbgSym = this._debugData?.sym.find(({ def }) => def.includes(dbgLine.id));
 			if (dbgSym) {
 				const address = Number(dbgSym.val);
 				if (Number.isInteger(address)) {
