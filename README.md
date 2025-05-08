@@ -1,10 +1,10 @@
 # cc65-dbg
 
-This vscode extension adds syntax and debugger support for cc65 and ca65.
+This VS Code extension adds syntax and debugger support for cc65 and ca65.
 
 ## Features
 
-Works with any adapter/emulator supporting Debug Adapter Protocol (DAP).
+Works with an adapter/emulator supporting Debug Adapter Protocol (DAP).
 
 You need to provide your own debugger or debug adapter as `"command"` option,
 which is able to communicate using DAP protocol over stdin/stdout or TCP socket.
@@ -23,8 +23,8 @@ with `.dbg` extension.
 
 The extension will present the breakpoint memory addresses as `lines` property
 of [SetBreakpoints Request][2]. Debugger does not need to know anything
-about the source structure - this is the job of the extension - just be able to
-set memory breakpoints and step through execution.
+about the source structure - this is the job of the extension. It just needs to be able to
+set *memory breakpoints*, pause and step through the program execution.
 
 [2]: https://microsoft.github.io/debug-adapter-protocol/specification#Requests_SetBreakpoints
 
@@ -35,9 +35,17 @@ for the pack is being received.
 
 [3]: https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source
 
+### Emulators
+
+List of emulators supporting this variation of DAP:
+
+- Emu <img src="https://raw.githubusercontent.com/X65/emu/main/emu.gif" alt="Emu"> — The [X65 Computer](https://x65.zone/) Emulator.
+
+If you know any other, please create a PR with an update to the list.
+
 ## Acknowledgements
 
-This builds on code from:
+This extension builds on code from:
 
 - [Alchemy65](https://github.com/AlchemicRaker/alchemy65)
 - [db65xx](https://github.com/tmr4/db65xx)
