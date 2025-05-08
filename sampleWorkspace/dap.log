@@ -1,0 +1,67 @@
+
+->Content-Length:
+-> 
+->5
+->4
+->3
+->
+->
+
+
+->{"seq":1,"type":"request","command":"initialize","arguments":{"clientID":"vscode","clientName":"Visual Studio Code","adapterID":"cc65-dbg","pathFormat":"path","linesStartAt1":true,"columnsStartAt1":true,"supportsVariableType":true,"supportsVariablePaging":
+->true,"supportsRunInTerminalRequest":true,"locale":"en","supportsProgressReporting":true,"supportsInvalidatedEvent":true,"supportsMemoryReferences":true,"supportsArgsCanBeInterpretedByShell":true,"supportsMemoryEvent":true,"supportsStartDebuggingRequest":tr
+->ue,"supportsANSIStyling":true}}
+<-Content-Length: 454
+
+
+<-{"body":{"supportSuspendDebuggee":true,"supportTerminateDebuggee":true,"supportsConfigurationDoneRequest":true,"supportsDisassembleRequest":true,"supportsEvaluateForHovers":true,"supportsReadMemoryRequest":true,"supportsRestartRequest":true,"supportsSetVariable":true,"supportsTerminateRequest":true,"supportsValueFormattingOptions":true,"supportsWriteMemoryRequest":false},"command":"initialize","request_seq":1,"seq":1,"success":true,"type":"response"}
+->Content-Length:
+-> 
+->3
+->6
+->5
+->
+->
+
+
+->{"command":"launch","arguments":{"type":"cc65-dbg","request":"launch","name":"Debug file","command":"../../emu/build/emu","program":"hello_world.bin","args":["--dap"],"stopOnEntry":true,"cwd":"/home/smoku/devel/X65/devel/cc65-dbg/sampleWorkspace","trace":t
+->rue,"__configurationTarget":6,"__sessionId":"6c5fa60f-9e9a-4d2d-9bfb-b1924e1ce3e5"},"type":"request","seq":2}
+<-Content-Length: 87
+
+
+<-{"body":{},"command":"launch","request_seq":2,"seq":2,"success":true,"type":"response"}
+<-Content-Length: 56
+
+
+<-{"body":{},"event":"initialized","seq":3,"type":"event"}
+<-Content-Length: 84
+
+
+<-{"body":{"reason":"started","threadId":100},"event":"thread","seq":4,"type":"event"}
+->Content-Length:
+-> 
+->1
+->9
+->4
+->
+->
+
+
+->{"command":"setBreakpoints","arguments":{"source":{"name":"src/hello_world.s","sourceReference":0},"lines":[32775,32775,32783,32807,32817,65520],"sourceModified":false},"type":"request","seq":3}
+<-Content-Length: 218
+
+
+<-{"body":{"breakpoints":[{"verified":true},{"verified":true},{"verified":true},{"verified":true},{"verified":true},{"verified":true}]},"command":"setBreakpoints","request_seq":3,"seq":5,"success":true,"type":"response"}
+->Content-Length:
+-> 
+->4
+->6
+->
+->
+
+
+->{"command":"threads","type":"request","seq":6}
+<-Content-Length: 129
+
+
+<-{"body":{"threads":[{"id":100,"name":"TheThread"}]},"command":"threads","request_seq":6,"seq":6,"success":true,"type":"response"}
