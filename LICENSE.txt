@@ -1,6 +1,6 @@
-Copyright (c) Microsoft Corporation
+Copyright © 2025 X65 Project
 
-All rights reserved. 
+All rights reserved.
 
 MIT License
 
