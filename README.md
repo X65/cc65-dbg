@@ -16,6 +16,16 @@ with `.dbg` extension.
 
 [1]: https://cc65.github.io/doc/ld65.html#s7
 
+### Screenshots
+
+Breakpoints synchronization between Emulator and VS Code:
+
+![Breakpoints synchronization between Emulator and VS Code](images/Emu_breakpoints_sync.png)
+
+CPU registers inspector and watch:
+
+![CPU registers view](images/CPU_registers.png)
+
 ### Requirements
 
 > :warning: Following are violations of Debug Adapter Protocol, used to simplify
@@ -41,7 +51,9 @@ List of emulators supporting this variation of DAP:
 
 - Emu <img src="https://raw.githubusercontent.com/X65/emu/main/emu.gif" alt="Emu"> — The [X65 Computer](https://x65.zone/) Emulator.
 
-If you know any other, please create a PR with an update to the list.
+If you know any other, please [create a PR][4] with an update to the list.
+
+[4]: https://github.com/X65/cc65-dbg/pulls
 
 ## Acknowledgements
 
