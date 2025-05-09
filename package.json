@@ -45,7 +45,7 @@
 		"publish": "vsce publish",
 		"publish-pre-release": "vsce publish --pre-release",
 		"vscode:prepublish": "rimraf dist && npm run -S esbuild-base -- --minify && npm run -S esbuild-web -- --minify",
-		"test": "npm run typecheck"
+		"test": "npm run check && npm run typecheck"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
@@ -58,7 +58,10 @@
 	},
 	"main": "./dist/extension.js",
 	"browser": "./dist/extension.js",
-	"activationEvents": ["onDebugResolve:cc65-dbg", "onDebugDynamicConfigurations:cc65-dbg"],
+	"activationEvents": [
+		"onDebugResolve:cc65-dbg",
+		"onDebugDynamicConfigurations:cc65-dbg"
+	],
 	"workspaceTrust": {
 		"request": "never"
 	},

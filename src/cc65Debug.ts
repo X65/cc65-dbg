@@ -11,12 +11,12 @@
  * Its main job is to enrich the protocol with information obtained from cc65 debug info file.
  */
 
-import { LoggingDebugSession, Logger, logger, TerminatedEvent } from "@vscode/debugadapter";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import * as path from "node:path";
+import { Logger, LoggingDebugSession, TerminatedEvent, logger } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
-import { addressToSpans, type DbgMap, readDebugFile, spansToSpanLines } from "./dbgService";
-import * as path from "node:path";
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { type DbgMap, addressToSpans, readDebugFile, spansToSpanLines } from "./dbgService";
 import { normalizePath } from "./utils";
 
 export enum ErrorCodes {
