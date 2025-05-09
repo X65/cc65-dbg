@@ -6,3 +6,4 @@ npm-debug.log
 cc65-dbg.log
 dap.log
 .DS_Store
+*.vsix
