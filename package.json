@@ -3,7 +3,7 @@
 	"displayName": "cc65/ca65 Debugger",
 	"description": "cc65/ca65 assembly language debugger for VS Code.",
 	"version": "0.1.0",
-	"publisher": "X65 Project",
+	"publisher": "X65-Project",
 	"author": {
 		"name": "Tomasz Sterna"
 	},
@@ -58,10 +58,7 @@
 	},
 	"main": "./dist/extension.js",
 	"browser": "./dist/extension.js",
-	"activationEvents": [
-		"onDebugResolve:cc65-dbg",
-		"onDebugDynamicConfigurations:cc65-dbg"
-	],
+	"activationEvents": ["onDebugResolve:cc65-dbg", "onDebugDynamicConfigurations:cc65-dbg"],
 	"workspaceTrust": {
 		"request": "never"
 	},
