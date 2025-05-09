@@ -28,7 +28,7 @@ CPU registers inspector and watch:
 
 ### Requirements
 
-> :warning: Following are violations of Debug Adapter Protocol, used to simplify
+> ⚠️ Following is a deviation from Debug Adapter Protocol, used to simplify
 > the DAP-debugger implementation for 8-bit machine emulators.
 
 The extension will present the breakpoint memory addresses as `lines` property
