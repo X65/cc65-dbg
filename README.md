@@ -31,6 +31,10 @@ CPU registers inspector and watch:
 
 ![CPU registers view](images/CPU_registers.png)
 
+Disassembly view:
+
+![Disassembly view](images/Disassembly.png)
+
 ### Requirements
 
 > ⚠️ Following is a deviation from Debug Adapter Protocol, used to simplify
