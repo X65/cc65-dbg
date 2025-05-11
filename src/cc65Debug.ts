@@ -16,7 +16,13 @@ import * as path from "node:path";
 import { Logger, LoggingDebugSession, TerminatedEvent, logger } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
-import { type DbgMap, addressToSpans, readDebugFile, spansToSpanLines } from "./dbgService";
+import {
+	type DbgFile,
+	type DbgMap,
+	addressToSpans,
+	readDebugFile,
+	spansToSpanLines,
+} from "./dbgService";
 import { normalizePath } from "./utils";
 
 export enum ErrorCodes {
@@ -296,21 +302,62 @@ export class Cc65DebugSession extends LoggingDebugSession {
 						frame.line = dbgLine.line;
 						const dbgFile = this._debugData.file.find((f) => f.id === dbgLine.file);
 						if (dbgFile) {
-							const fileName = normalizePath(dbgFile.name);
-							for (const base of this._debugPathBases) {
-								if (fileName.startsWith(base)) {
-									const name = fileName.slice(base.length);
-									frame.source = {
-										name,
+							const wsFile = this.dbgFile2workspace(dbgFile);
+							if (wsFile) {
+								frame.source = {
+									name: wsFile,
+									path: path.resolve(
+										this._session.workspaceFolder?.uri.fsPath || ".",
+										wsFile,
+									),
+									presentationHint: "emphasize",
+								};
+							}
+						}
+					}
+				}
+
+				return this.sendResponse(result);
+			}
+			case "disassemble": {
+				const result = response as DebugProtocol.DisassembleResponse;
+				const { instructions = [] } = result.body || {};
+
+				if (!this._debugData) {
+					throw new Error("Cannot work without loaded .dbg file");
+				}
+
+				for (const instruction of instructions) {
+					if (instruction.presentationHint !== "invalid" && instruction.address != null) {
+						const address = instruction.address.startsWith("0x")
+							? Number.parseInt(instruction.address.slice(2), 16)
+							: Number.parseInt(instruction.address, 10);
+
+						const spans = addressToSpans(this._debugData, address, true);
+						const lines = spansToSpanLines(this._debugData, spans);
+						const dbgLine = lines[0]?.line;
+						if (dbgLine) {
+							instruction.line = dbgLine.line;
+							const dbgFile = this._debugData.file.find((f) => f.id === dbgLine.file);
+							if (dbgFile) {
+								const wsFile = this.dbgFile2workspace(dbgFile);
+								if (wsFile) {
+									instruction.location = {
+										name: wsFile,
 										path: path.resolve(
 											this._session.workspaceFolder?.uri.fsPath || ".",
-											name,
+											wsFile,
 										),
-										presentationHint: "emphasize",
 									};
-									break;
 								}
 							}
+						}
+
+						const dbgSym = this._debugData?.sym.find(
+							({ val }) => address === Number(val),
+						);
+						if (dbgSym) {
+							instruction.symbol = dbgSym.name;
 						}
 					}
 				}
@@ -589,5 +636,14 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		console.log("setInstructionBreakpointsRequest", args);
 
 		return this.sendMessage(request);
+	}
+
+	private dbgFile2workspace(dbgFile: DbgFile) {
+		const fileName = normalizePath(dbgFile.name);
+		for (const base of this._debugPathBases) {
+			if (fileName.startsWith(base)) {
+				return fileName.slice(base.length);
+			}
+		}
 	}
 }
