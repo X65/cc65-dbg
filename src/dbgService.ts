@@ -4,7 +4,7 @@
 //import { readFile } from 'fs/promises';
 import * as fs from "node:fs";
 
-export type AddrSize = "zeropage" | "absolute";
+export type AddrSize = "zeropage" | "absolute" | "far";
 export interface DbgMap {
 	csym: DbgCSym[];
 	file: DbgFile[];
@@ -221,8 +221,8 @@ function dataToScope(data: { [key: string]: string }): DbgScope {
 		parent: data.parent ? Number.parseInt(data.parent) : undefined,
 		size: data.size ? Number.parseInt(data.size) : undefined,
 		span: data.span ? data.span.split("+").map((s) => Number.parseInt(s)) : undefined,
-		sym: Number.parseInt(data.sym),
-		// type: Number.parseInt(data.type),
+		sym: data.sym ? Number.parseInt(data.sym) : undefined,
+		type: data.type as DbgScope["type"],
 	};
 }
 

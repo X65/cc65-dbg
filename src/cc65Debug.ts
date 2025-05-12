@@ -83,6 +83,8 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private _debugPathBases: string[] = [];
 	private _requestBreakpoints: Map<number, (number | string)[]> = new Map();
 
+	static globalsVariablesReferenceId = 1000000000;
+
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
 	 * We configure the default implementation of a debug adapter here.
@@ -123,10 +125,12 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				case "disconnect":
 				case "setBreakpoints":
 				case "setInstructionBreakpoints":
-					// pass to dispatcher
+				case "variables":
+					// these are messages we want to modify before sending to debugger/adapter
+					// pass to dispatcher, so the matching method will handle the modification
 					return super.handleMessage(message);
 				default:
-					// route to debugger/adapter
+					// route to debugger/adapter directly
 					return this.sendMessage(message);
 			}
 	}
@@ -226,6 +230,8 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 */
 	protected processResponse(response: DebugProtocol.Response) {
 		console.debug("processResponse", response);
+
+		// augment debugger/adapter response with additional data
 		switch (response.command) {
 			case "initialize": {
 				const result = response as DebugProtocol.InitializeResponse;
@@ -360,6 +366,25 @@ export class Cc65DebugSession extends LoggingDebugSession {
 							instruction.symbol = dbgSym.name;
 						}
 					}
+				}
+
+				return this.sendResponse(result);
+			}
+			case "scopes": {
+				const result = response as DebugProtocol.ScopesResponse;
+				const { scopes } = result.body;
+
+				if (!this._debugData) {
+					throw new Error("Cannot work without loaded .dbg file");
+				}
+
+				if (!scopes.find((s) => s.name === "Globals")) {
+					scopes.push({
+						name: "Globals",
+						presentationHint: "globals",
+						variablesReference: Cc65DebugSession.globalsVariablesReferenceId,
+						expensive: false,
+					});
 				}
 
 				return this.sendResponse(result);
@@ -638,6 +663,35 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		return this.sendMessage(request);
 	}
 
+	protected variablesRequest(
+		response: DebugProtocol.VariablesResponse,
+		args: DebugProtocol.VariablesArguments,
+		request: DebugProtocol.Request,
+	) {
+		console.log("variablesRequest", args, response);
+
+		if (!response.body) response.body = { variables: [] };
+		if (!response.body.variables) response.body.variables = [];
+		const { variables } = response.body;
+
+		switch (args.variablesReference) {
+			case Cc65DebugSession.globalsVariablesReferenceId: {
+				for (const dbgScope of this._debugData?.scope || []) {
+					if (dbgScope.parent == null) {
+						const dbgMod = this._debugData?.mod.find((mod) => mod.id === dbgScope.mod);
+						if (dbgMod) {
+							// TODO: list cSym globals here?
+						}
+					}
+				}
+				return this.sendResponse(response);
+			}
+		}
+
+		return this.sendMessage(request);
+	}
+
+	// --------------------------------------------------------------------
 	private dbgFile2workspace(dbgFile: DbgFile) {
 		const fileName = normalizePath(dbgFile.name);
 		for (const base of this._debugPathBases) {
