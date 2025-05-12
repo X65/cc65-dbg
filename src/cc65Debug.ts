@@ -19,11 +19,12 @@ import type { DebugSession } from "vscode";
 import {
 	type DbgFile,
 	type DbgMap,
+	DbgSymType,
 	addressToSpans,
 	readDebugFile,
 	spansToSpanLines,
 } from "./dbgService";
-import { normalizePath } from "./utils";
+import { normalizePath, parseNumber, unquote } from "./utils";
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
@@ -83,7 +84,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private _debugPathBases: string[] = [];
 	private _requestBreakpoints: Map<number, (number | string)[]> = new Map();
 
-	static globalsVariablesReferenceId = 1000000000;
+	static scopeVariablesReferenceBase = 1000000000;
 
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
@@ -378,13 +379,35 @@ export class Cc65DebugSession extends LoggingDebugSession {
 					throw new Error("Cannot work without loaded .dbg file");
 				}
 
-				if (!scopes.find((s) => s.name === "Globals")) {
-					scopes.push({
-						name: "Globals",
-						presentationHint: "globals",
-						variablesReference: Cc65DebugSession.globalsVariablesReferenceId,
-						expensive: false,
-					});
+				const rootScopes = this._debugData.scope.filter((s) => s.parent == null);
+				for (const rootScope of rootScopes) {
+					const dbgMod = this._debugData.mod.find((m) => m.id === rootScope.mod);
+					if (dbgMod) {
+						const name = unquote(rootScope.name) || unquote(dbgMod.name);
+						const scope: DebugProtocol.Scope = {
+							name,
+							presentationHint: "globals",
+							variablesReference:
+								Cc65DebugSession.scopeVariablesReferenceBase + rootScope.id,
+							expensive: false,
+						};
+
+						const dbgFile = this._debugData.file.find((f) => f.id === dbgMod.file);
+						if (dbgFile) {
+							const wsFile = this.dbgFile2workspace(dbgFile);
+							if (wsFile) {
+								scope.source = {
+									name: wsFile,
+									path: path.resolve(
+										this._session.workspaceFolder?.uri.fsPath || ".",
+										wsFile,
+									),
+								};
+							}
+						}
+
+						scopes.push(scope);
+					}
 				}
 
 				return this.sendResponse(result);
@@ -674,18 +697,87 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		if (!response.body.variables) response.body.variables = [];
 		const { variables } = response.body;
 
-		switch (args.variablesReference) {
-			case Cc65DebugSession.globalsVariablesReferenceId: {
-				for (const dbgScope of this._debugData?.scope || []) {
-					if (dbgScope.parent == null) {
-						const dbgMod = this._debugData?.mod.find((mod) => mod.id === dbgScope.mod);
-						if (dbgMod) {
-							// TODO: list cSym globals here?
+		if (
+			args.variablesReference >= Cc65DebugSession.scopeVariablesReferenceBase &&
+			args.variablesReference <
+				Cc65DebugSession.scopeVariablesReferenceBase + (this._debugData?.scope.length || 0)
+		) {
+			const dbgScopeId =
+				args.variablesReference - Cc65DebugSession.scopeVariablesReferenceBase;
+			const dbgScope = this._debugData?.scope.find((scope) => scope.id === dbgScopeId);
+			const evaluateName = (name: string) => {
+				const nameParts = [name];
+				let scope = dbgScope;
+				while (scope) {
+					if (scope.parent != null) {
+						nameParts.unshift(unquote(scope.name));
+					}
+					scope = this._debugData?.scope.find((s) => s.id === scope?.parent);
+				}
+				return nameParts.join("::");
+			};
+			if (dbgScope) {
+				// add sub-scopes this scope is a parent of
+				const subScopes =
+					this._debugData?.scope.filter(({ parent }) => parent === dbgScope.id) || [];
+				for (const subScope of subScopes || []) {
+					const name = unquote(subScope.name);
+					const variable: DebugProtocol.Variable = {
+						name,
+						value: subScope.type || "scope",
+						type: subScope.type,
+						presentationHint: {
+							kind: "class",
+							attributes: ["static"],
+							visibility: "public",
+						},
+						variablesReference:
+							Cc65DebugSession.scopeVariablesReferenceBase + subScope.id,
+					};
+					if (name) {
+						variable.evaluateName = evaluateName(name);
+					}
+					if (subScope.sym != null) {
+						const dbgSym = this._debugData?.sym.find(({ id }) => id === subScope.sym);
+						if (dbgSym && dbgSym.type === "lab" && dbgSym.val != null) {
+							// if this has a label symbol attached, it has a memory address
+							variable.memoryReference = dbgSym.val;
 						}
 					}
+					variables.push(variable);
 				}
-				return this.sendResponse(response);
+
+				// add symbols belonging to the scope
+				const dbgSymbols = this._debugData?.sym.filter(
+					({ scope }) => scope === dbgScope.id,
+				);
+				for (const dbgSym of dbgSymbols || []) {
+					// skip imports
+					if (dbgSym.type === "imp") continue;
+
+					const name = unquote(dbgSym.name);
+					const variable: DebugProtocol.Variable = {
+						name,
+						value: dbgSym.val ?? "unknown",
+						type: dbgSym.type ? DbgSymType[dbgSym.type] : "unknown",
+						presentationHint: {
+							kind: dbgSym.type === "lab" ? "label" : "property",
+							attributes: [],
+							visibility: "public",
+						},
+						evaluateName: evaluateName(name),
+						variablesReference: 0,
+					};
+					if ((dbgSym.type === "lab" || dbgSym.size) && dbgSym.val != null) {
+						// labels are names for memory addresses
+						// or if the 'equ' has a known size it probably is an address too
+						variable.memoryReference = dbgSym.val;
+					}
+					variables.push(variable);
+				}
 			}
+
+			return this.sendResponse(response);
 		}
 
 		return this.sendMessage(request);

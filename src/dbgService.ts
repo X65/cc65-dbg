@@ -137,6 +137,12 @@ export interface DbgSym {
 	exp?: number;
 }
 
+export const DbgSymType: Record<Required<DbgSym>["type"], string> = {
+	lab: "label",
+	equ: "equality",
+	imp: "import",
+};
+
 export interface DbgCSym {
 	// csym	id=0,name="pal_bg",scope=1,type=5,sc=ext,sym=487
 	/// reference #
