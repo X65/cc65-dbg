@@ -24,7 +24,7 @@ import {
 	readDebugFile,
 	spansToSpanLines,
 } from "./dbgService";
-import { normalizePath, parseNumber, unquote } from "./utils";
+import { normalizePath, parseNumber, toHex, unquote } from "./utils";
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
@@ -83,6 +83,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private _debugData: DbgMap | undefined;
 	private _debugPathBases: string[] = [];
 	private _requestBreakpoints: Map<number, (number | string)[]> = new Map();
+	private _pendingResponse: Map<number, DebugProtocol.Response> = new Map();
 
 	static scopeVariablesReferenceBase = 1000000000;
 
@@ -127,6 +128,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				case "setBreakpoints":
 				case "setInstructionBreakpoints":
 				case "variables":
+				case "evaluate":
 					// these are messages we want to modify before sending to debugger/adapter
 					// pass to dispatcher, so the matching method will handle the modification
 					return super.handleMessage(message);
@@ -336,9 +338,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 				for (const instruction of instructions) {
 					if (instruction.presentationHint !== "invalid" && instruction.address != null) {
-						const address = instruction.address.startsWith("0x")
-							? Number.parseInt(instruction.address.slice(2), 16)
-							: Number.parseInt(instruction.address, 10);
+						const address = parseNumber(instruction.address);
 
 						const spans = addressToSpans(this._debugData, address, true);
 						const lines = spansToSpanLines(this._debugData, spans);
@@ -411,6 +411,41 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				}
 
 				return this.sendResponse(result);
+			}
+			case "readMemory": {
+				if (this._pendingResponse.has(response.request_seq)) {
+					const pendingResponse = this._pendingResponse.get(
+						response.request_seq,
+					) as DebugProtocol.EvaluateResponse;
+					if (pendingResponse) {
+						this._pendingResponse.delete(response.request_seq);
+						const result = response as DebugProtocol.ReadMemoryResponse;
+						// This is a readMemory response requested for symbol evaluation.
+						// Convert read data to symbol value.
+						if (!pendingResponse.body)
+							pendingResponse.body = { result: "", variablesReference: 0 };
+						pendingResponse.body.variablesReference = 0;
+						pendingResponse.body.memoryReference = result.body?.address;
+						pendingResponse.body.presentationHint = {
+							kind: "data",
+							attributes: ["static"],
+							visibility: "public",
+						};
+
+						const data = [...Buffer.from(result.body?.data || "", "base64")];
+						switch (data.length) {
+							case 1:
+								pendingResponse.body.result = `$${toHex(data[0])}`;
+								break;
+							case 2:
+								pendingResponse.body.result = `$${toHex(data[1])}${toHex(data[0])}`;
+								break;
+							default:
+								pendingResponse.body.result = data.map((d) => toHex(d)).join(" ");
+						}
+						return this.sendResponse(pendingResponse);
+					}
+				}
 			}
 		}
 		return this.sendResponse(response);
@@ -778,6 +813,41 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			}
 
 			return this.sendResponse(response);
+		}
+
+		return this.sendMessage(request);
+	}
+
+	protected evaluateRequest(
+		response: DebugProtocol.EvaluateResponse,
+		args: DebugProtocol.EvaluateArguments,
+		request: DebugProtocol.Request,
+	) {
+		console.log("evaluateRequest", args, response);
+
+		const { expression } = args;
+
+		if (expression) {
+			const dbgSym = this._debugData?.sym.find(
+				(sym) => unquote(sym.name) === expression && sym.type !== "imp",
+			);
+			// if this expression is a symbol, send its address and size
+			// as encoded memory address
+			if (dbgSym?.val && dbgSym.size != null) {
+				console.log("Memory read symbol", expression, dbgSym.val);
+				// replace the evaluate request with a memory read request
+				const memoryRequest: DebugProtocol.ReadMemoryRequest = {
+					seq: request.seq,
+					type: "request",
+					command: "readMemory",
+					arguments: {
+						memoryReference: dbgSym.val,
+						count: dbgSym.size,
+					},
+				};
+				this._pendingResponse.set(request.seq, response);
+				return this.sendMessage(memoryRequest);
+			}
 		}
 
 		return this.sendMessage(request);
