@@ -31,9 +31,21 @@ CPU registers inspector and watch:
 
 ![CPU registers view](images/CPU_registers.png)
 
+Module-scoped Globals view:
+
+![Module-scoped Globals](images/module_scoped_globals.png)
+
 Disassembly view:
 
 ![Disassembly view](images/Disassembly.png)
+
+Memory view:
+
+![Memory view](images/Memory_View.png)
+
+Arbitrary Watch expressions:
+
+![Watch expressions](images/watch_expressions.png)
 
 ### Requirements
 
