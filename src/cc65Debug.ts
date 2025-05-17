@@ -625,7 +625,9 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	) {
 		console.log("setBreakPointsRequest", args);
 
-		const workspacePath = path.resolve(this._session.workspaceFolder?.uri.fsPath || ".");
+		const workspacePath = normalizePath(
+			path.resolve(this._session.workspaceFolder?.uri.fsPath || "."),
+		);
 		const { source, breakpoints, lines } = args;
 
 		if (!source.path) throw new Error("Source path is required");
@@ -634,9 +636,21 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		const sourceLines = lines || breakpoints?.map(({ line }) => line) || [];
 
 		const sourcePath = normalizePath(source.path);
-		const sourceBase = path.relative(workspacePath, sourcePath);
+		const sourceBase = path.isAbsolute(source.path)
+			? normalizePath(path.relative(workspacePath, sourcePath))
+			: sourcePath;
+
+		if (sourceBase.startsWith("..")) {
+			return this.sendErrorResponse(response, {
+				id: ErrorCodes.DAP_ENV_INCORRECT,
+				format: "File '{sourcePath}' does not belong to workspace '{workspacePath}'",
+				variables: { sourcePath, workspacePath },
+				showUser: true,
+			});
+		}
+
 		const dbgFile = this._debugData?.file.find((file) => {
-			const filePath = normalizePath(file.name);
+			const filePath = `${path.posix.sep}${normalizePath(file.name)}`;
 			return filePath.endsWith(`${path.posix.sep}${sourceBase}`);
 		});
 
@@ -649,7 +663,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				source,
 				line,
 				reason: "failed",
-				message: `Source file '${sourceBase}' is missing in debug info file`,
+				message: `Source file '${source.path}' is missing in debug info file.`,
 			}));
 			return this.sendResponse(response);
 		}
