@@ -265,7 +265,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 			}
 			case "setBreakpoints": {
 				const result = response as DebugProtocol.SetBreakpointsResponse;
-				const { breakpoints } = result.body;
+				const { breakpoints = [] } = result.body || { breakpoints: [] };
 				const requestBreakpoints = this._requestBreakpoints.get(response.request_seq);
 				this._requestBreakpoints.delete(response.request_seq);
 				if (!requestBreakpoints) {
@@ -276,20 +276,28 @@ export class Cc65DebugSession extends LoggingDebugSession {
 					});
 				}
 
-				result.body.breakpoints = requestBreakpoints.map((bp) => {
-					if (typeof bp === "number") {
-						const res = breakpoints.shift();
-						if (res) return res;
-						throw new Error(
-							`SetBreakpoints ${response.request_seq} returned less breakpoints than requested.`,
-						);
-					}
-					return {
-						verified: false,
-						reason: "failed",
-						message: bp || undefined,
-					};
-				});
+				try {
+					result.body.breakpoints = requestBreakpoints.map((bp) => {
+						if (typeof bp === "number") {
+							const res = breakpoints.shift();
+							if (res) return res;
+							throw new Error(
+								`SetBreakpoints ${response.request_seq} returned less breakpoints than requested.`,
+							);
+						}
+						return {
+							verified: false,
+							reason: "failed",
+							message: bp || undefined,
+						};
+					});
+				} catch (error) {
+					return this.sendErrorResponse(response, {
+						id: ErrorCodes.DAP_PROTOCOL_VIOLATION,
+						format: String(error),
+						showUser: true,
+					});
+				}
 
 				return this.sendResponse(result);
 			}
