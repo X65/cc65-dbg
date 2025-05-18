@@ -25,6 +25,7 @@ import {
 	spansToSpanLines,
 } from "./dbgService";
 import { normalizePath, parseNumber, toHex, unquote } from "./utils";
+import { WebSocket } from 'ws';
 
 export enum ErrorCodes {
 	DAP_NOT_SUPPORTED = 1000,
@@ -76,6 +77,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	private _dataLength: number;
 
 	private _program: ChildProcessWithoutNullStreams | undefined;
+	private _websocket: WebSocket | undefined;
 
 	/// connected over TCP port?
 	private _connected = false;
@@ -155,7 +157,12 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 		const header = `Content-Length: ${contentLength}\r\n\r\n`;
 
-		this._program?.stdin.write(header + json, "utf8");
+		if (typeof this._program !== "undefined")
+			this._program?.stdin.write(header + json, "utf8");
+		else if (typeof this._websocket !== "undefined")
+			this._websocket?.send(header + json);
+		else
+			throw new Error("No program or websocket"); 
 	}
 
 	public sendResponse(response: DebugProtocol.Response): void {
@@ -515,7 +522,38 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	 * Attempts to connect to an existing debugger adapter.
 	 */
 	protected connectAdapter(port: number, host: string): Promise<void> {
-		throw new Error("Connecting to existing debugger not supported yet.");
+		console.debug("connectAdapter", host, port);
+
+		return new Promise((resolve, reject) => {
+			const ws = new WebSocket(`ws://${host}:${port}/debug/`);
+			
+			ws.addEventListener("open", (event) => {
+				console.log(`WebSocket connection established to ws://${host}:${port}/debug/`);
+				logger.log(`WebSocket connection established to ws://${host}:${port}/debug/`);
+				this._websocket = ws;
+				resolve();
+			});
+			
+			ws.addEventListener("message", (event) => {
+				if (typeof event.data === "string" || event.data instanceof String) {
+					this._processData(Buffer.from(String(event.data), 'utf-8'));
+				} else {
+					console.warn("Received non-text websocket data, ignoring.");
+					logger.warn("Received non-text websocket data, ignoring.");
+				}
+			});
+			
+			ws.addEventListener("error", (error) => {
+				console.error(`WebSocket error: ${error}`);
+				logger.error(`WebSocket error: ${error}`);
+				reject(error.message);
+			});
+			
+			ws.addEventListener("close", (event) => {
+				console.log(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+				logger.log(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+			});
+		});
 	}
 
 	/**
@@ -591,11 +629,13 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		request?: DebugProtocol.Request,
 	) {
 		console.log("attachRequest", args);
-		return this.sendErrorResponse(response, {
-			id: ErrorCodes.DAP_NOT_SUPPORTED,
-			format: "Attaching to TCP port is not yet supported.",
-			showUser: true,
-		});
+		
+		if (typeof this._websocket === "undefined")
+			return this.sendErrorResponse(response, {
+				id: ErrorCodes.DAP_CONNECT_ERROR,
+				format: "WebSocket connection to the debug server was not established",
+				showUser: true,
+			});
 	}
 
 	protected disconnectRequest(
@@ -606,7 +646,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		console.log("disconnectRequest", args, request);
 		if (!request) throw new Error("Original request not provided");
 
-		request.arguments.terminateDebuggee = !this._connected;
+		request.arguments.terminateDebuggee = (typeof this._websocket !== "undefined");
 		return this.sendMessage(request);
 	}
 
