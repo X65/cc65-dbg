@@ -47,10 +47,14 @@
 		"vscode:prepublish": "rimraf dist && npm run -S esbuild-base -- --minify && npm run -S esbuild-web -- --minify",
 		"test": "npm run check && npm run typecheck"
 	},
+	"dependencies": {
+		"ws": "^8.18.2"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
 		"@types/node": "22.x",
 		"@types/vscode": "^1.99.0",
+		"@types/ws": "^8.18.1",
 		"@vscode/debugadapter": "^1.68.0",
 		"@vscode/vsce": "^3.3.2",
 		"esbuild": "^0.25.3",
@@ -178,22 +182,17 @@
 						}
 					},
 					"attach": {
-						"required": ["program", "port"],
+						"required": ["program", "address"],
 						"properties": {
 							"program": {
 								"type": "string",
 								"format": "uri-reference",
 								"description": "Path of program to be debugged (debugee)."
 							},
-							"port": {
-								"type": "number",
-								"description": "TCP port to attach to."
-							},
-							"host": {
+							"address": {
 								"type": "string",
-								"format": "uri-reference",
-								"description": "TCP host to attach to.",
-								"default": true
+								"format": "uri",
+								"description": "Remote address to attach to."
 							},
 							"trace": {
 								"type": "boolean",

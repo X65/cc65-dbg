@@ -20,7 +20,7 @@
       "request": "attach",
       "name": "Attach running",
       "program": "hello_world.bin",
-      "port": 4567,
+      "address": "ws://localhost:4567/debug/",
       "trace": true
     }
   ]
