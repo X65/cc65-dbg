@@ -2,7 +2,7 @@
 	"name": "cc65-dbg",
 	"displayName": "cc65/ca65 Debugger",
 	"description": "cc65/ca65 assembly language debugger for VS Code.",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"publisher": "X65-Project",
 	"author": {
 		"name": "Tomasz Sterna"
