@@ -16,6 +16,7 @@ import * as path from "node:path";
 import { Logger, LoggingDebugSession, TerminatedEvent, logger } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSession } from "vscode";
+import { WebSocket } from "ws";
 import {
 	type DbgFile,
 	type DbgMap,
@@ -77,7 +78,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 	private _program: ChildProcessWithoutNullStreams | undefined;
 
-	/// connected over TCP port?
+	private _websocket: WebSocket | undefined;
 	private _connected = false;
 
 	private _debugData: DbgMap | undefined;
@@ -155,7 +156,8 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 		const header = `Content-Length: ${contentLength}\r\n\r\n`;
 
-		this._program?.stdin.write(header + json, "utf8");
+		if (this._program) this._program?.stdin.write(header + json, "utf8");
+		if (this._websocket) this._websocket?.send(header + json);
 	}
 
 	public sendResponse(response: DebugProtocol.Response): void {
@@ -522,8 +524,52 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	/**
 	 * Attempts to connect to an existing debugger adapter.
 	 */
-	protected connectAdapter(port: number, host: string): Promise<void> {
-		throw new Error("Connecting to existing debugger not supported yet.");
+	protected connectAdapter(address: string | URL): Promise<void> {
+		console.debug("connectAdapter", address);
+
+		const addr = typeof address === "string" ? new URL(address) : address;
+
+		if (["ws:", "wss:"].includes(addr.protocol)) {
+			return new Promise((resolve, reject) => {
+				const ws = new WebSocket(addr);
+
+				ws.addEventListener("open", (event) => {
+					console.log(`WebSocket connection established to ${addr}`);
+					logger.log(`WebSocket connection established to ${addr}`);
+					this._websocket = ws;
+					this._connected = true;
+					resolve();
+				});
+
+				ws.addEventListener("message", (event) => {
+					if (typeof event.data === "string" || event.data instanceof String) {
+						this._processData(Buffer.from(String(event.data), "utf-8"));
+					} else {
+						console.warn("Received non-text websocket data, ignoring.");
+						logger.warn("Received non-text websocket data, ignoring.");
+					}
+				});
+
+				ws.addEventListener("error", (error) => {
+					console.error(`WebSocket error: ${error}`);
+					logger.error(`WebSocket error: ${error}`);
+					reject(error.message);
+				});
+
+				ws.addEventListener("close", (event) => {
+					console.log(
+						`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`,
+					);
+					logger.log(
+						`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`,
+					);
+				});
+			});
+		}
+
+		throw new Error(
+			`Unsupported connection protocol: ${addr.protocol}. Only 'ws:' and 'wss:' are supported`,
+		);
 	}
 
 	/**
@@ -561,9 +607,9 @@ export class Cc65DebugSession extends LoggingDebugSession {
 
 			case "attach":
 				{
-					const { port, host = "localhost" } = this._session.configuration;
+					const { address } = this._session.configuration;
 					try {
-						await this.connectAdapter(port, host);
+						await this.connectAdapter(address);
 					} catch (error) {
 						return this.sendErrorResponse(response, {
 							id: ErrorCodes.DAP_CONNECT_ERROR,
@@ -599,11 +645,13 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		request?: DebugProtocol.Request,
 	) {
 		console.log("attachRequest", args);
-		return this.sendErrorResponse(response, {
-			id: ErrorCodes.DAP_NOT_SUPPORTED,
-			format: "Attaching to TCP port is not yet supported.",
-			showUser: true,
-		});
+
+		if (!this._connected)
+			return this.sendErrorResponse(response, {
+				id: ErrorCodes.DAP_CONNECT_ERROR,
+				format: "Connection to the debug server was not established",
+				showUser: true,
+			});
 	}
 
 	protected disconnectRequest(
