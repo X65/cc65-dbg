@@ -47,7 +47,77 @@ Arbitrary Watch expressions:
 
 ![Watch expressions](images/watch_expressions.png)
 
-### Requirements
+## Usage
+
+To use the `cc65-dbg` extension for debugging your 6502/65816 binaries in VSCode,
+configure your `.vscode/launch.json` file with one of the following templates:
+
+### Launch a Debug Session
+
+To start the emulator and begin debugging automatically:
+
+```json
+{
+  "type": "cc65-dbg",
+  "request": "launch",
+  "name": "Debug file",
+  "program": "hello_world.bin",
+  "command": "/usr/local/bin/emu",
+  "args": ["--dap"],
+  "stopOnEntry": true,
+  "cwd": "${workspaceFolder}",
+  "trace": true
+}
+```
+
+* `program`: The binary file to debug.
+* `command`: Path to your emulator binary.
+* `args`: Enter whatever arguments your emulator needs to enable DAP server.
+* `stopOnEntry`: Set to `true` to halt at program start.
+* `cwd`: Working directory.
+* `trace`: Enables DAP message logging for troubleshooting.
+
+### Attach to a Running Emulator
+
+To attach the debugger to an emulator already running with DAP server port open:
+
+```json
+{
+  "type": "cc65-dbg",
+  "request": "attach",
+  "name": "Attach running",
+  "program": "hello_world.bin",
+  "address": "ws://localhost:4567/debug/",
+  "trace": true
+}
+```
+
+* `program`: Binary used by the running emulator (for symbols).
+* `address`: WebSocket DAP endpoint of the emulator.
+
+### CMake Integration (Recommended for CMake Projects)
+
+You can streamline your workflow by integrating with VSCode's CMake Tools extension:
+
+```json
+{
+  "type": "cc65-dbg",
+  "request": "launch",
+  "name": "Build & Debug",
+  "program": "${command:cmake.launchTargetPath}",
+  "command": "/usr/local/bin/emu",
+  "args": ["--dap", "${command:cmake.launchTargetPath}"],
+  "stopOnEntry": true,
+  "cwd": "${workspaceFolder}",
+  "trace": true,
+  "preLaunchTask": "CMake: build"
+}
+```
+
+* Automatically uses the current CMake build target for `program`.
+* Builds the project before launching via `preLaunchTask`.
+
+## Requirements
 
 > ⚠️ Following is a deviation from Debug Adapter Protocol, used to simplify
 > the DAP-debugger implementation for 8-bit machine emulators.
@@ -66,11 +136,11 @@ for the pack is being received.
 
 [3]: https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source
 
-### Emulators
+## Emulators
 
 List of emulators supporting this variation of DAP:
 
-- Emu <img src="https://raw.githubusercontent.com/X65/emu/main/emu.gif" alt="Emu"> — The [X65 Computer](https://x65.zone/) Emulator.
+* Emu <img src="https://raw.githubusercontent.com/X65/emu/main/emu.gif" alt="Emu"> — The [X65 Computer](https://x65.zone/) Emulator.
 
 If you know any other, please [create a PR][4] with an update to the list.
 
@@ -80,7 +150,7 @@ If you know any other, please [create a PR][4] with an update to the list.
 
 This extension builds on code from:
 
-- [Alchemy65](https://github.com/AlchemicRaker/alchemy65)
-- [db65xx](https://github.com/tmr4/db65xx)
+* [Alchemy65](https://github.com/AlchemicRaker/alchemy65)
+* [db65xx](https://github.com/tmr4/db65xx)
 
 Kudos to its authors!
