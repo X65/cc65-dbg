@@ -119,7 +119,8 @@ You can streamline your workflow by integrating with VSCode's CMake Tools extens
 
 ## Requirements
 
-> ⚠️ Following is a deviation from Debug Adapter Protocol, used to simplify
+> [!NOTE]
+> Following is a deviation from Debug Adapter Protocol, used to simplify
 > the DAP-debugger implementation for 8-bit machine emulators.
 
 The extension will present the breakpoint memory addresses as `lines` property
