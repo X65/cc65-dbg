@@ -178,6 +178,14 @@
 								"type": "string",
 								"description": "Absolute path to the working directory.",
 								"default": "${cwd}"
+							},
+							"srcDirs": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "An additional list of lookup paths for source files - e.g. required if we step from main debug code into a subroutine of a library",
+								"default": false
 							}
 						}
 					},
@@ -202,6 +210,14 @@
 							"noDebug": {
 								"type": "boolean",
 								"description": "Run without debugging.",
+								"default": false
+							},
+							"srcDirs": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "An additional list of lookup paths for source files - e.g. required if we step from main debug code into a subroutine of a library",
 								"default": false
 							}
 						}

@@ -12,6 +12,7 @@
  */
 
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { Logger, LoggingDebugSession, TerminatedEvent, logger } from "@vscode/debugadapter";
 import type { DebugProtocol } from "@vscode/debugprotocol";
@@ -52,6 +53,8 @@ interface IRequestArguments extends DebugProtocol.LaunchRequestArguments {
 	trace?: boolean;
 	/** run without debugging */
 	noDebug?: boolean;
+	/** An additional list of lookup paths for source files - e.g. required if we step from main debug code into a subroutine of a library */
+	srcDirs?: string[];
 }
 
 interface ILaunchRequestArguments extends IRequestArguments {
@@ -105,6 +108,11 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		this.setDebuggerLinesStartAt1(true);
 		this.setDebuggerColumnsStartAt1(true);
 
+		const srcDirs: string[] = this._session.configuration.srcDirs || [];
+
+		this._debugPathBases = [
+			...new Set([...this._debugPathBases, ...((srcDirs as string[]) ?? [])]),
+		];
 		// make sure to 'Stop' the buffered logging if 'trace' is not set
 		logger.setup(
 			this._session.configuration.trace ? Logger.LogLevel.Verbose : Logger.LogLevel.Stop,
@@ -696,10 +704,14 @@ export class Cc65DebugSession extends LoggingDebugSession {
 				showUser: true,
 			});
 		}
-
+		const dbgFileBaseName = path.basename(sourceBase);
+		const dbgFileSize = fs.statSync(source.path).size;
 		const dbgFile = this._debugData?.file.find((file) => {
 			const filePath = `${path.posix.sep}${normalizePath(file.name)}`;
-			return filePath.endsWith(`${path.posix.sep}${sourceBase}`);
+			return (
+				dbgFileSize === file.size &&
+				filePath.endsWith(`${path.posix.sep}${dbgFileBaseName}`)
+			);
 		});
 
 		if (!response.body) response.body = { breakpoints: [] };
@@ -717,7 +729,7 @@ export class Cc65DebugSession extends LoggingDebugSession {
 		}
 
 		// Store path base for later name reconstruction
-		const fileBase = normalizePath(dbgFile.name).slice(0, -sourceBase.length);
+		const fileBase = sourceBase.slice(0, -normalizePath(dbgFile.name).length);
 		if (!this._debugPathBases.includes(fileBase)) this._debugPathBases.push(fileBase);
 
 		// map source lines to memory addresses
@@ -926,9 +938,15 @@ export class Cc65DebugSession extends LoggingDebugSession {
 	// --------------------------------------------------------------------
 	private dbgFile2workspace(dbgFile: DbgFile) {
 		const fileName = normalizePath(dbgFile.name);
-		for (const base of this._debugPathBases) {
-			if (fileName.startsWith(base)) {
-				return fileName.slice(base.length);
+		// lookup relative to workspaceFolder
+		const workspaceFolder = normalizePath(
+			path.resolve(this._session.workspaceFolder?.uri.fsPath || "."),
+		);
+		// build path and do fs lookup
+		for (const pathBase of this._debugPathBases) {
+			const candidate = path.resolve(workspaceFolder, pathBase, fileName);
+			if (fs.existsSync(candidate) && fs.statSync(candidate).size === dbgFile.size) {
+				return normalizePath(path.relative(workspaceFolder, candidate));
 			}
 		}
 	}
